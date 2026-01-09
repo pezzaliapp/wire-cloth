@@ -2,35 +2,58 @@
 <html lang="it">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <title>Wire Cloth + Afro Groove (Mobile First) + Stereo WAV REC</title>
   <style>
     :root{
       --bg:#050805;
       --g:rgba(120,255,140,0.85);
-      --g2:rgba(120,255,140,0.28);
-      --g3:rgba(120,255,140,0.14);
       --txt:#b6ffbf;
       --txt2:#d7ffdd;
       --hud:rgba(0,0,0,.30);
       --br:rgba(182,255,191,.22);
       --pad:12px;
       --radius:12px;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
     }
-    html,body{margin:0;height:100%;background:var(--bg);overflow:hidden}
+
+    html,body{
+      margin:0;
+      height:100%;
+      background:var(--bg);
+      overflow:hidden;
+      overscroll-behavior:none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* iOS: svh evita problemi con la barra Safari */
+    body{ height:100svh; }
+
     canvas{
-      display:block;width:100vw;height:100vh;
+      display:block;
+      width:100vw;
+      height:100svh;
       touch-action:none;
       -webkit-tap-highlight-color: transparent;
     }
+
     .hud{
-      position:fixed;left:var(--pad);top:var(--pad);z-index:10;
+      position:fixed;
+      left:calc(var(--pad) + var(--safe-left));
+      top:calc(var(--pad) + var(--safe-top));
+      z-index:10;
       font:12px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;
-      color:var(--txt);opacity:.97;user-select:none;
+      color:var(--txt);
+      opacity:.97;
+      user-select:none;
       background:var(--hud);
-      padding:10px 12px;border-radius:var(--radius);
+      padding:10px 12px;
+      border-radius:var(--radius);
       border:1px solid var(--br);
-      max-width:min(720px, calc(100vw - 2*var(--pad)));
+      max-width:min(720px, calc(100vw - 2*var(--pad) - var(--safe-left) - var(--safe-right)));
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
     }
@@ -59,6 +82,7 @@
 
     .kv{display:inline-flex;gap:6px;align-items:center}
     .kv span{opacity:.9}
+
     input[type="range"]{
       width:150px;
       -webkit-appearance:none;appearance:none;
@@ -72,24 +96,23 @@
       background:#d7ffdd;border:1px solid rgba(0,0,0,.4);
     }
 
-    /* Collapsed HUD: resta solo la barra controlli */
     .collapsed .desc,
     .collapsed .advanced,
-    .collapsed .mini{
-      display:none;
-    }
+    .collapsed .mini{ display:none; }
 
-    /* Mobile: riduci testo */
     @media (max-width: 480px){
-      .hud{left:10px;top:10px;padding:10px 10px;font-size:12px;max-width:calc(100vw - 20px)}
+      .hud{
+        padding:10px 10px;
+        font-size:12px;
+        max-width:calc(100vw - 20px - var(--safe-left) - var(--safe-right));
+      }
       input[type="range"]{width:130px}
       .row{gap:6px}
       .btn{padding:8px 10px}
     }
 
-    /* Landscape: HUD più stretto e alto “snello” (auto-collassa via JS) */
     @media (orientation: landscape){
-      .hud{max-width:min(420px, calc(100vw - 2*var(--pad)))}
+      .hud{max-width:min(420px, calc(100vw - 2*var(--pad) - var(--safe-left) - var(--safe-right)))}
     }
   </style>
 </head>
@@ -121,8 +144,8 @@
 
     <div class="advanced">
       <div class="row">
-        <span class="kv">BPM <span id="bpmOut">123</span></span>
-        <input id="bpm" type="range" min="110" max="132" step="1" value="123" />
+        <span class="kv">BPM <span id="bpmOut">115</span></span>
+        <input id="bpm" type="range" min="90" max="132" step="1" value="115" />
         <span class="kv">Swing <span id="swOut">0.58</span></span>
         <input id="sw" type="range" min="0.50" max="0.64" step="0.01" value="0.58" />
       </div>
@@ -151,7 +174,6 @@
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { alpha:false });
 
-  // --- Under-layer (memoria/tracce) ---
   const trail = document.createElement('canvas');
   const tctx  = trail.getContext('2d', { alpha:true });
 
@@ -159,7 +181,6 @@
   const errBox = document.getElementById('err');
 
   const toggleHudBtn = document.getElementById('toggleHudBtn');
-
   const audioBtn = document.getElementById('audioBtn');
   const eraseBtn = document.getElementById('eraseBtn');
   const recBtn = document.getElementById('recBtn');
@@ -186,29 +207,39 @@
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const logErr = (m)=>{ errBox.textContent = String(m||""); };
 
-  // Prevent HUD touches from drawing
+  // Blocca HUD: tap su bottoni/slider non deve disegnare sul canvas
   ["pointerdown","pointermove","pointerup","click","touchstart","touchmove","touchend"].forEach(ev=>{
     hud.addEventListener(ev, (e)=>{ e.stopPropagation(); }, {passive:false});
   });
 
-  // HUD collapse/expand
-  function setHudCollapsed(v){
-    hud.classList.toggle("collapsed", !!v);
-  }
+  // HUD collapse/expand: IMPORTANT -> NON resetta niente
+  function setHudCollapsed(v){ hud.classList.toggle("collapsed", !!v); }
   toggleHudBtn.addEventListener("click", ()=>{
     setHudCollapsed(!hud.classList.contains("collapsed"));
-    resetClothOnly(); // ricalcola spazi
+    // niente reset qui: solo cambia UI
   });
 
-  // ---------- resize / layout ----------
+  // ---------- viewport size (iOS-safe) ----------
   let W=0,H=0,DPR=1, isLandscape=false;
+
+  function getViewport(){
+    const vv = window.visualViewport;
+    if(vv){
+      return { w: Math.round(vv.width), h: Math.round(vv.height) };
+    }
+    return { w: innerWidth|0, h: innerHeight|0 };
+  }
 
   function resize(){
     DPR = Math.max(1, Math.min(2, devicePixelRatio||1));
-    W = innerWidth|0; H = innerHeight|0;
+
+    const vp = getViewport();
+    W = vp.w|0;
+    H = vp.h|0;
+
     isLandscape = W > H;
 
-    // auto-collassa in landscape, espande in portrait (compromesso mobile-first)
+    // auto-collassa in landscape, espande in portrait
     setHudCollapsed(isLandscape);
 
     canvas.width  = (W*DPR)|0;
@@ -222,37 +253,36 @@
     tctx.setTransform(DPR,0,0,DPR,0,0);
   }
 
-  // Groove band: più grande su mobile, sempre visibile
-  function grooveBandRect(){
-    const pad = 12;
-    // più generosa in portrait, più “compatta” in landscape ma sempre usabile
-    const hPct = isLandscape ? 0.42 : 0.30;
-    const h = clamp((H*hPct)|0, isLandscape ? 110 : 140, isLandscape ? 190 : 260);
-    return { x: pad, y: H - h - pad, w: W - pad*2, h };
+  // aggiorna anche su iOS quando cambia barra / rotate
+  addEventListener('resize', ()=>{ resize(); resetClothOnly(); });
+  if(window.visualViewport){
+    visualViewport.addEventListener('resize', ()=>{ resize(); resetClothOnly(); });
+    visualViewport.addEventListener('scroll', ()=>{ resize(); resetClothOnly(); });
   }
 
-  addEventListener('resize', ()=>{ resize(); resetClothOnly(); });
   resize();
 
   // ---------- Groove ----------
   const STEPS = 16;
   const TRACKS = 5; // kick, clap, shaker, conga, bass
   const trackNames = ["K","C","S","G","B"];
-  let bpm = 123;
+
+  let bpm = 115;     // DEFAULT richiesto
   let swing = 0.58;
 
   const pattern = Array.from({length: TRACKS}, ()=> Array(STEPS).fill(0));
 
   function seedAfro(){
     for(let r=0;r<TRACKS;r++) pattern[r].fill(0);
-    [0,3,7,8,11,14].forEach(s => pattern[0][s] = 1); // kick
-    [4,12,15].forEach(s => pattern[1][s] = 1);       // clap
-    [1,2,3,5,6,7,9,10,11,13,14,15].forEach(s => pattern[2][s] = 1); // shaker
-    [2,6,10,13].forEach(s => pattern[3][s] = 1);      // conga
-    [0,7,10,15].forEach(s => pattern[4][s] = 1);      // bass
+    [0,3,7,8,11,14].forEach(s => pattern[0][s] = 1);
+    [4,12,15].forEach(s => pattern[1][s] = 1);
+    [1,2,3,5,6,7,9,10,11,13,14,15].forEach(s => pattern[2][s] = 1);
+    [2,6,10,13].forEach(s => pattern[3][s] = 1);
+    [0,7,10,15].forEach(s => pattern[4][s] = 1);
   }
   seedAfro();
 
+  bpmSlider.value = String(bpm);
   bpmOut.textContent = bpm;
   swOut.textContent = swing.toFixed(2);
 
@@ -263,15 +293,24 @@
   clearBtn.addEventListener('click', ()=> { for(let r=0;r<TRACKS;r++) pattern[r].fill(0); });
   resetBtn.addEventListener('click', ()=> { seedAfro(); resetClothOnly(); });
 
+  // Groove band rect (safe-area aware)
+  function grooveBandRect(){
+    const pad = 12;
+    const safeB = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-bottom')) || 0;
+    const safeL = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-left')) || 0;
+    const safeR = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-right')) || 0;
+
+    const hPct = isLandscape ? 0.46 : 0.32;
+    const h = clamp((H*hPct)|0, isLandscape ? 120 : 150, isLandscape ? 200 : 280);
+
+    const x = pad + safeL;
+    const w = W - (pad*2) - safeL - safeR;
+    const y = H - h - pad - safeB;
+    return { x, y, w, h };
+  }
+
   // ---------- Trails settings ----------
-  const trails = {
-    mem: 65,
-    react: 55,
-    alpha: 0.70,
-    glow: 0.55,
-    fadeBase: 0.035,
-    fadeAudio: 0.020
-  };
+  const trails = { mem:65, react:55, alpha:0.70, glow:0.55, fadeBase:0.035, fadeAudio:0.020 };
 
   function updateTrailParams(){
     trails.mem = +memSlider.value;
@@ -309,6 +348,7 @@
     const band = grooveBandRect();
     const top = hudH + 14;
     const bottom = (H - band.y) + 10;
+
     const usableH = Math.max(160, H - top - bottom);
     const usableW = Math.max(240, W - 24);
 
@@ -340,11 +380,7 @@
       const dx=bx-ax, dy=by-ay;
       const d=Math.hypot(dx,dy);
       if(d===0) return;
-      if(d>TEAR_DIST){
-        spawnGhost(ax,ay,bx,by,0.70);
-        this.active=false;
-        return;
-      }
+      if(d>TEAR_DIST){ spawnGhost(ax,ay,bx,by,0.70); this.active=false; return; }
       const diff=(d-this.rest)/d;
       const ox=dx*0.5*diff, oy=dy*0.5*diff;
       if(!this.a.pinned){ this.a.x+=ox; this.a.y+=oy; }
@@ -385,11 +421,9 @@
     }
   }
 
-  // IMPORTANT: su rotazione NON resettiamo pattern. Solo cloth.
   function resetClothOnly(){
     adaptCloth();
     buildCloth();
-    // una leggera “wash” del trail così resta bello, non satura
     tctx.fillStyle = 'rgba(5,8,5,0.18)';
     tctx.fillRect(0,0,W,H);
   }
@@ -435,10 +469,7 @@
       t = clamp(t,0,1);
       const px=ax+t*vx, py=ay+t*vy;
       const dx=x-px, dy=y-py;
-      if(dx*dx+dy*dy<=rr){
-        spawnGhost(ax,ay,bx,by,0.95);
-        l.active=false;
-      }
+      if(dx*dx+dy*dy<=rr){ spawnGhost(ax,ay,bx,by,0.95); l.active=false; }
     }
   }
 
@@ -454,13 +485,10 @@
     lastX = pointer.x; lastY = pointer.y; lastT = now;
   }
 
-  // Band tap: toggle cell
   function toggleCellAt(x,y){
     const band = grooveBandRect();
-    const labelW = Math.min(34, band.w*0.12); // area labels a sinistra
-    const inBand =
-      x >= band.x && x <= band.x + band.w &&
-      y >= band.y && y <= band.y + band.h;
+    const labelW = Math.min(34, band.w*0.12);
+    const inBand = x>=band.x && x<=band.x+band.w && y>=band.y && y<=band.y+band.h;
     if(!inBand) return false;
 
     const gx = clamp(x - (band.x + labelW), 0, band.w - labelW);
@@ -474,30 +502,26 @@
     return true;
   }
 
-  // Hybrid paint
   function paintGrooveFromPointer(){
     if(!pointer.down || pointer.shift) return;
 
     const band = grooveBandRect();
     const labelW = Math.min(34, band.w*0.12);
-    const inBand =
-      pointer.x >= band.x && pointer.x <= band.x + band.w &&
-      pointer.y >= band.y && pointer.y <= band.y + band.h;
+    const inBand = pointer.x>=band.x && pointer.x<=band.x+band.w && pointer.y>=band.y && pointer.y<=band.y+band.h;
 
     if(inBand){
       const gx = clamp(pointer.x - (band.x + labelW), 0, band.w - labelW);
       const col = clamp(Math.floor((gx/(band.w - labelW)) * STEPS), 0, STEPS-1);
       const row = clamp(Math.floor(((pointer.y - band.y)/band.h) * TRACKS), 0, TRACKS-1);
       pattern[row][col] = eraseMode ? 0 : 1;
-      spawnChip(pointer.x,pointer.y,0.35);
+      if(Math.random()<0.35) spawnChip(pointer.x,pointer.y,0.35);
       return;
     }
 
-    // fuori banda: pennello “grosso”
     const col = clamp(Math.floor((pointer.x / W) * STEPS), 0, STEPS-1);
     const baseRow = clamp(Math.floor((pointer.y / H) * TRACKS), 0, TRACKS-1);
 
-    const stepBrush = 1 + Math.floor(dragAccent * 2); // 1..3
+    const stepBrush = 1 + Math.floor(dragAccent * 2);
     const trackSpread = dragAccent > 0.55 ? 1 : 0;
 
     for(let dc=-stepBrush; dc<=stepBrush; dc++){
@@ -518,11 +542,9 @@
         pattern[r][s] = eraseMode ? 0 : 1;
       }
     }
-
     if(Math.random() < 0.35 + dragAccent*0.35) spawnChip(pointer.x,pointer.y,0.25 + dragAccent*0.7);
   }
 
-  // Pointer events
   canvas.addEventListener('pointerdown', (e)=>{
     setPointer(e);
     pointer.down = true;
@@ -531,7 +553,6 @@
     lastX = pointer.x; lastY = pointer.y; lastT = performance.now();
     dragAccent = 0;
 
-    // tap in band = toggle immediato
     toggleCellAt(pointer.x, pointer.y);
 
     if(pointer.shift) cutLinks(pointer.x, pointer.y, CUT_RADIUS);
@@ -551,7 +572,6 @@
     try{ canvas.releasePointerCapture(e.pointerId); }catch{}
   }, {passive:true});
 
-  // Double tap/click = reset (afro + cloth)
   let lastTap=0;
   canvas.addEventListener('pointerup', ()=>{
     const now=performance.now();
@@ -562,13 +582,12 @@
     lastTap=now;
   }, {passive:true});
 
-  // ---------- Web Audio + analyser + Stereo WAV REC ----------
+  // ---------- Web Audio + Stereo WAV REC ----------
   let audio = null;
 
   function createAudio(){
     const AC = window.AudioContext || window.webkitAudioContext;
     if(!AC) throw new Error("AudioContext non supportato dal browser.");
-
     const ac = new AC({ latencyHint: "interactive" });
 
     const master = ac.createGain();
@@ -596,11 +615,7 @@
       g.gain.exponentialRampToValueAtTime(0.0001, t + a + d);
       return g;
     }
-    function panNode(p){
-      const pn = ac.createStereoPanner();
-      pn.pan.value = p;
-      return pn;
-    }
+    function panNode(p){ const pn = ac.createStereoPanner(); pn.pan.value = p; return pn; }
 
     function kick(t){
       const o = ac.createOscillator();
@@ -650,46 +665,36 @@
       o.start(t); o.stop(t+0.32);
     }
 
-    // energy 0..1 (low-mid weighted)
     function energy(){
       analyser.getByteFrequencyData(spec);
       let sum = 0;
-      const a = 2;
-      const b = Math.floor(spec.length * 0.35);
+      const a = 2, b = Math.floor(spec.length * 0.35);
       for(let i=a;i<b;i++) sum += spec[i];
       return clamp((sum / Math.max(1,(b-a))) / 255, 0, 1);
     }
 
-    // Recorder (stereo WAV) – ScriptProcessor
+    // Recorder (stereo WAV)
     const rec = { node:null, bufsL:[], bufsR:[], isRec:false, sampleRate: ac.sampleRate };
-
     rec.node = ac.createScriptProcessor(4096, 2, 2);
     rec.node.onaudioprocess = (e) => {
       if(!rec.isRec) return;
       const in0 = e.inputBuffer.getChannelData(0);
-      const has1 = e.inputBuffer.numberOfChannels > 1;
-      const in1 = has1 ? e.inputBuffer.getChannelData(1) : in0;
+      const in1 = (e.inputBuffer.numberOfChannels>1) ? e.inputBuffer.getChannelData(1) : in0;
       rec.bufsL.push(new Float32Array(in0));
       rec.bufsR.push(new Float32Array(in1));
     };
-
     const recSink = ac.createGain();
     recSink.gain.value = 0.0;
-
     master.connect(rec.node);
     rec.node.connect(recSink);
     recSink.connect(ac.destination);
 
     function encodeWAVStereo(bufsL, bufsR, sampleRate){
-      let length = 0;
-      for (const b of bufsL) length += b.length;
-
+      let length = 0; for (const b of bufsL) length += b.length;
       const interleaved = new Int16Array(length * 2);
       let o = 0;
-
       for (let i=0;i<bufsL.length;i++){
-        const L = bufsL[i];
-        const R = bufsR[i] || L;
+        const L = bufsL[i], R = bufsR[i] || L;
         for (let n=0;n<L.length;n++){
           let sL = Math.max(-1, Math.min(1, L[n]));
           let sR = Math.max(-1, Math.min(1, R[n]));
@@ -697,7 +702,6 @@
           interleaved[o++] = (sR < 0 ? sR * 0x8000 : sR * 0x7FFF) | 0;
         }
       }
-
       const wavBuffer = new ArrayBuffer(44 + interleaved.length * 2);
       const view = new DataView(wavBuffer);
       const writeStr = (p, s)=>{ for(let i=0;i<s.length;i++) view.setUint8(p+i, s.charCodeAt(i)); };
@@ -737,15 +741,13 @@
     function isRecRunning(){ return rec.isRec; }
 
     // Scheduler
-    let step = 0;
-    let nextTime = 0;
-    const lookahead = 0.10;
-    const interval = 25;
+    let step = 0, nextTime = 0;
+    const lookahead = 0.10, interval = 25;
     let timer = null;
 
     function schedule(){
       const spb = 60 / bpm;
-      const baseStep = spb / 4; // 16th
+      const baseStep = spb / 4;
       while(nextTime < ac.currentTime + lookahead){
         const isOff = (step % 2) === 1;
         const swingOffset = isOff ? (baseStep * (swing - 0.5)) : 0;
@@ -762,20 +764,18 @@
       }
     }
 
-    function start(){ if(timer) return; nextTime = ac.currentTime + 0.05; timer = setInterval(schedule, interval); }
+    function start(){ if(timer) return; nextTime = ac.currentTime + 0.05; timer=setInterval(schedule, interval); }
     function stop(){ if(timer){ clearInterval(timer); timer=null; } }
 
-    return { ac, start, stop, isRunning: ()=>!!timer, startRec, stopRec, isRecRunning, energy };
+    return { ac, start, stop, isRunning:()=>!!timer, startRec, stopRec, isRecRunning, energy };
   }
 
   function downloadBlob(blob, filename){
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
+    a.href = url; a.download = filename;
     document.body.appendChild(a);
-    a.click();
-    a.remove();
+    a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url), 2000);
   }
 
@@ -784,20 +784,15 @@
       logErr("");
       if(!audio){
         audio = createAudio();
-        audio.ac.resume().then(()=>{
-          audio.start();
-          audioBtn.textContent = "■ AUDIO";
-        }).catch(err=>logErr("Audio start error: " + err));
+        audio.ac.resume().then(()=>{ audio.start(); audioBtn.textContent="■ AUDIO"; })
+          .catch(err=>logErr("Audio start error: " + err));
         return;
       }
       if(audio.isRunning()){
-        audio.stop();
-        audioBtn.textContent = "▶ AUDIO";
-      } else {
-        audio.ac.resume().then(()=>{
-          audio.start();
-          audioBtn.textContent = "■ AUDIO";
-        }).catch(err=>logErr("Audio resume error: " + err));
+        audio.stop(); audioBtn.textContent="▶ AUDIO";
+      }else{
+        audio.ac.resume().then(()=>{ audio.start(); audioBtn.textContent="■ AUDIO"; })
+          .catch(err=>logErr("Audio resume error: " + err));
       }
     }catch(err){ logErr(err); }
   });
@@ -805,23 +800,21 @@
   recBtn.addEventListener('click', async ()=>{
     try{
       logErr("");
-      // iOS: ensure audio exists+running
       if(!audio){
         audio = createAudio();
         await audio.ac.resume();
         audio.start();
-        audioBtn.textContent = "■ AUDIO";
-      } else {
+        audioBtn.textContent="■ AUDIO";
+      }else{
         await audio.ac.resume();
         if(!audio.isRunning()) audio.start();
-        audioBtn.textContent = "■ AUDIO";
+        audioBtn.textContent="■ AUDIO";
       }
       if(audio.isRecRunning()) return;
-
       audio.startRec();
       recBtn.classList.add("active");
       recBtn.textContent = "● REC…";
-      stopRecBtn.style.display = "inline-flex";
+      stopRecBtn.style.display="inline-flex";
     }catch(err){ logErr("REC error: " + err); }
   });
 
@@ -831,14 +824,76 @@
       const wav = audio.stopRec();
       const stamp = new Date().toISOString().replace(/[:.]/g,'-');
       downloadBlob(wav, `afro-groove-stereo-${stamp}.wav`);
-
       recBtn.classList.remove("active");
-      recBtn.textContent = "● REC WAV";
-      stopRecBtn.style.display = "none";
+      recBtn.textContent="● REC WAV";
+      stopRecBtn.style.display="none";
     }catch(err){ logErr("STOP REC error: " + err); }
   });
 
-  // ---------- simulation ----------
+  // ---------- render ----------
+  function drawGrooveBand(e){
+    const band = grooveBandRect();
+    const labelW = Math.min(34, band.w*0.12);
+
+    ctx.fillStyle = 'rgba(0,0,0,0.42)';
+    ctx.fillRect(band.x, band.y, band.w, band.h);
+
+    ctx.fillStyle = 'rgba(0,0,0,0.32)';
+    ctx.fillRect(band.x, band.y, labelW, band.h);
+
+    ctx.strokeStyle = 'rgba(120,255,140,0.16)';
+    ctx.lineWidth = 1;
+
+    for(let s=0;s<=STEPS;s++){
+      const x = band.x + labelW + (s/STEPS)*(band.w - labelW);
+      ctx.beginPath(); ctx.moveTo(x, band.y); ctx.lineTo(x, band.y+band.h); ctx.stroke();
+    }
+    for(let r=0;r<=TRACKS;r++){
+      const y = band.y + (r/TRACKS)*band.h;
+      ctx.beginPath(); ctx.moveTo(band.x, y); ctx.lineTo(band.x+band.w, y); ctx.stroke();
+    }
+
+    ctx.fillStyle = 'rgba(215,255,221,0.92)';
+    ctx.font = '12px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for(let r=0;r<TRACKS;r++){
+      const cy = band.y + (r+0.5)*(band.h/TRACKS);
+      ctx.fillText(trackNames[r], band.x + labelW*0.5, cy);
+    }
+
+    for(let r=0;r<TRACKS;r++){
+      for(let s=0;s<STEPS;s++){
+        if(!pattern[r][s]) continue;
+        const x0 = band.x + labelW + (s/STEPS)*(band.w - labelW);
+        const y0 = band.y + (r/TRACKS)*band.h;
+        const w = (band.w - labelW)/STEPS;
+        const h = band.h/TRACKS;
+
+        const a = 0.20 + 0.22*(trails.glow*e);
+        ctx.fillStyle = `rgba(120,255,140,${a})`;
+        ctx.fillRect(x0+2, y0+2, w-4, h-4);
+
+        tctx.fillStyle = `rgba(120,255,140,${0.07 + 0.10*e})`;
+        tctx.fillRect(x0+2, y0+2, w-4, h-4);
+      }
+    }
+
+    if(audio && audio.isRunning()){
+      const t = (performance.now()/1000) * (bpm/60) * 4;
+      const ph = Math.floor(t) % STEPS;
+      const x = band.x + labelW + (ph/STEPS)*(band.w - labelW);
+
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.moveTo(x, band.y); ctx.lineTo(x, band.y+band.h); ctx.stroke();
+
+      ctx.strokeStyle = `rgba(180,255,200,${0.55 + 0.35*trails.glow})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(x, band.y); ctx.lineTo(x, band.y+band.h); ctx.stroke();
+    }
+  }
+
   function applyVoidField(e){
     if(!pointer.down || pointer.shift) return;
     const cx=pointer.x, cy=pointer.y, R=FIELD_R, R2=R*R;
@@ -857,104 +912,22 @@
     }
   }
 
-  // ---------- render ----------
-  function drawGrooveBand(e){
-    const band = grooveBandRect();
-    const labelW = Math.min(34, band.w*0.12);
-
-    // background
-    ctx.fillStyle = 'rgba(0,0,0,0.42)';
-    ctx.fillRect(band.x, band.y, band.w, band.h);
-
-    // labels area
-    ctx.fillStyle = 'rgba(0,0,0,0.32)';
-    ctx.fillRect(band.x, band.y, labelW, band.h);
-
-    // grid
-    ctx.strokeStyle = 'rgba(120,255,140,0.16)';
-    ctx.lineWidth = 1;
-
-    for(let s=0;s<=STEPS;s++){
-      const x = band.x + labelW + (s/STEPS)*(band.w - labelW);
-      ctx.beginPath(); ctx.moveTo(x, band.y); ctx.lineTo(x, band.y+band.h); ctx.stroke();
-    }
-    for(let r=0;r<=TRACKS;r++){
-      const y = band.y + (r/TRACKS)*band.h;
-      ctx.beginPath(); ctx.moveTo(band.x, y); ctx.lineTo(band.x+band.w, y); ctx.stroke();
-    }
-
-    // track labels
-    ctx.fillStyle = 'rgba(215,255,221,0.92)';
-    ctx.font = '12px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    for(let r=0;r<TRACKS;r++){
-      const cy = band.y + (r+0.5)*(band.h/TRACKS);
-      ctx.fillText(trackNames[r], band.x + labelW*0.5, cy);
-    }
-
-    // active cells
-    for(let r=0;r<TRACKS;r++){
-      for(let s=0;s<STEPS;s++){
-        if(!pattern[r][s]) continue;
-        const x0 = band.x + labelW + (s/STEPS)*(band.w - labelW);
-        const y0 = band.y + (r/TRACKS)*band.h;
-        const w = (band.w - labelW)/STEPS;
-        const h = band.h/TRACKS;
-
-        const a = 0.20 + 0.22*(trails.glow*e);
-        ctx.fillStyle = `rgba(120,255,140,${a})`;
-        ctx.fillRect(x0+2, y0+2, w-4, h-4);
-
-        // “memoria sotto”
-        tctx.fillStyle = `rgba(120,255,140,${0.07 + 0.10*e})`;
-        tctx.fillRect(x0+2, y0+2, w-4, h-4);
-      }
-    }
-
-    // playhead (molto più visibile)
-    if(audio && audio.isRunning()){
-      const t = (performance.now()/1000) * (bpm/60) * 4;
-      const ph = Math.floor(t) % STEPS;
-
-      const x = band.x + labelW + (ph/STEPS)*(band.w - labelW);
-      // shadow band
-      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-      ctx.lineWidth = 6;
-      ctx.beginPath(); ctx.moveTo(x, band.y); ctx.lineTo(x, band.y+band.h); ctx.stroke();
-
-      ctx.strokeStyle = `rgba(180,255,200,${0.55 + 0.35*trails.glow})`;
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.moveTo(x, band.y); ctx.lineTo(x, band.y+band.h); ctx.stroke();
-
-      // step highlight box (sottile, aiuta su mobile)
-      ctx.strokeStyle = 'rgba(180,255,200,0.25)';
-      ctx.lineWidth = 1.5;
-      const w = (band.w - labelW)/STEPS;
-      ctx.strokeRect(x, band.y, w, band.h);
-    }
-  }
-
   function frame(){
     const e = (audio && audio.isRunning()) ? audio.energy() : 0;
 
-    // fade trail: memoria + reattività
     const fade = clamp(trails.fadeBase - e*trails.fadeAudio, 0.010, 0.10);
     tctx.fillStyle = `rgba(5,8,5,${fade})`;
     tctx.fillRect(0,0,W,H);
 
-    // background
     ctx.fillStyle = '#050805';
     ctx.fillRect(0,0,W,H);
 
-    // draw trail layer
     ctx.globalCompositeOperation = "screen";
     ctx.globalAlpha = clamp(trails.alpha * (0.65 + 0.45*e), 0, 1);
     ctx.drawImage(trail, 0, 0, W, H);
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = "source-over";
 
-    // sim
     for(const p of points) p.verlet();
     applyVoidField(e);
     paintGrooveFromPointer();
@@ -968,7 +941,6 @@
       }
     }
 
-    // cloth draw
     const glow = trails.glow;
     const alpha = 0.70 + 0.25*(glow*e);
     const extraW = 0.15 + 0.55*(glow*e);
@@ -981,8 +953,6 @@
       const t=clamp(d/l.rest,0.7,1.6);
       const w=clamp((2.1-(t-0.7))*1.2, 0.75, 2.4) + extraW;
 
-      if(Math.random() < (0.0015 + 0.006*e)*glow) spawnGhost(ax,ay,bx,by, 0.12 + 0.35*e);
-
       ctx.lineWidth = w;
       ctx.strokeStyle = `rgba(120,255,140,${alpha})`;
       ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
@@ -990,7 +960,6 @@
 
     drawGrooveBand(e);
 
-    // pointer dot
     ctx.fillStyle = pointer.shift ? 'rgba(255,180,80,0.9)' : `rgba(180,255,200,${0.75+0.25*e})`;
     ctx.beginPath(); ctx.arc(pointer.x, pointer.y, 4, 0, Math.PI*2); ctx.fill();
 
