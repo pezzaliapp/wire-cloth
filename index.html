@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Wire Cloth — single file</title>
+  <style>
+    html,body{margin:0;height:100%;background:#050805;overflow:hidden}
+    canvas{display:block;width:100vw;height:100vh}
+    .hud{
+      position:fixed;left:12px;top:12px;
+      font:12px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;
+      color:#b6ffbf;opacity:.9;user-select:none;
+      background:rgba(0,0,0,.25);padding:8px 10px;border-radius:10px;
+      border:1px solid rgba(182,255,191,.2)
+    }
+    .hud b{color:#d7ffdd}
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="hud">
+    <b>Wire Cloth</b><br>
+    Drag = tira la rete • Shift = taglia (tear) • Doppio tap/click = reset
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha: false });
+
+  // ---------- utilities ----------
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
+
+  // ---------- resize ----------
+  let W=0, H=0, DPR=1;
+  function resize(){
+    DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    W = Math.floor(innerWidth);
+    H = Math.floor(innerHeight);
+    canvas.width  = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  addEventListener('resize', () => { resize(); reset(); });
+  resize();
+
+  // ---------- simulation parameters (tuning) ----------
+  let COLS = 48;        // densità orizzontale
+  let ROWS = 28;        // densità verticale
+  let SPACING = 16;     // distanza punti
+  let GRAV = 0.42;
+  let FRICTION = 0.992; // damping
+  let ITER = 5;         // iterazioni vincoli per frame
+  let TEAR_DIST = 32;   // oltre questo la "corda" si spezza
+  let PICK_RADIUS = 26; // area di presa
+  let CUT_RADIUS  = 18; // area di taglio
+  let LINE_W_MIN = 0.75;
+  let LINE_W_MAX = 2.4;
+
+  // auto-adatta densità su schermi piccoli/grandi
+  function adapt(){
+    const base = Math.min(W, H);
+    SPACING = clamp(Math.floor(base / 40), 10, 22);
+    COLS = clamp(Math.floor(W / SPACING) - 2, 28, 70);
+    ROWS = clamp(Math.floor(H / SPACING) - 8, 18, 50);
+    TEAR_DIST = SPACING * 2.2;
+    PICK_RADIUS = SPACING * 1.8;
+    CUT_RADIUS  = SPACING * 1.25;
+  }
+
+  // ---------- data structures ----------
+  class Point {
+    constructor(x, y, pinned=false){
+      this.x = x; this.y = y;
+      this.px = x; this.py = y;   // previous position (Verlet)
+      this.pinned = pinned;
+    }
+    verlet(){
+      if (this.pinned) return;
+      const vx = (this.x - this.px) * FRICTION;
+      const vy = (this.y - this.py) * FRICTION;
+      this.px = this.x; this.py = this.y;
+      this.x += vx;
+      this.y += vy + GRAV;
+    }
+    pin(){ this.pinned = true; }
+    unpin(){ this.pinned = false; }
+  }
+
+  class Link {
+    constructor(a, b, rest){
+      this.a = a; this.b = b;
+      this.rest = rest;
+      this.active = true;
+    }
+    satisfy(){
+      if(!this.active) return;
+      const ax = this.a.x, ay = this.a.y;
+      const bx = this.b.x, by = this.b.y;
+      const dx = bx - ax, dy = by - ay;
+      const d = Math.hypot(dx, dy);
+      if (d === 0) return;
+
+      // tear
+      if (d > TEAR_DIST) { this.active = false; return; }
+
+      const diff = (d - this.rest) / d;
+      const offx = dx * 0.5 * diff;
+      const offy = dy * 0.5 * diff;
+
+      if (!this.a.pinned) { this.a.x += offx; this.a.y += offy; }
+      if (!this.b.pinned) { this.b.x -= offx; this.b.y -= offy; }
+    }
+  }
+
+  let points = [];
+  let links  = [];
+
+  function idx(x,y){ return y * COLS + x; }
+
+  function buildCloth(){
+    points = [];
+    links  = [];
+
+    const marginTop = Math.floor(H * 0.12);
+    const startX = Math.floor((W - (COLS-1)*SPACING) / 2);
+    const startY = marginTop;
+
+    for(let y=0; y<ROWS; y++){
+      for(let x=0; x<COLS; x++){
+        const px = startX + x*SPACING;
+        const py = startY + y*SPACING;
+        const pinned = (y === 0) && (x % 2 === 0); // pin alternato in alto
+        points.push(new Point(px, py, pinned));
+      }
+    }
+
+    // horizontal & vertical links
+    for(let y=0; y<ROWS; y++){
+      for(let x=0; x<COLS; x++){
+        if (x < COLS-1) links.push(new Link(points[idx(x,y)], points[idx(x+1,y)], SPACING));
+        if (y < ROWS-1) links.push(new Link(points[idx(x,y)], points[idx(x,y+1)], SPACING));
+      }
+    }
+
+    // diagonals (fa l'effetto "triangoli" come nel video)
+    for(let y=0; y<ROWS-1; y++){
+      for(let x=0; x<COLS-1; x++){
+        links.push(new Link(points[idx(x,y)],   points[idx(x+1,y+1)], Math.hypot(SPACING,SPACING)));
+        links.push(new Link(points[idx(x+1,y)], points[idx(x,y+1)],   Math.hypot(SPACING,SPACING)));
+      }
+    }
+  }
+
+  function reset(){
+    adapt();
+    buildCloth();
+  }
+  reset();
+
+  // ---------- interaction ----------
+  const pointer = {
+    x: W/2, y: H/2,
+    down: false,
+    shift: false,
+    grabbed: null
+  };
+
+  function nearestPoint(x,y,r){
+    let best = null;
+    let bd = r;
+    for(const p of points){
+      const d = dist(x,y,p.x,p.y);
+      if(d < bd){ bd = d; best = p; }
+    }
+    return best;
+  }
+
+  function cutLinks(x,y,r){
+    const rr = r*r;
+    for(const l of links){
+      if(!l.active) continue;
+      const ax=l.a.x, ay=l.a.y, bx=l.b.x, by=l.b.y;
+      // distanza punto-segmento (approssimata/veloce)
+      const vx = bx-ax, vy = by-ay;
+      const wx = x-ax, wy = y-ay;
+      const c1 = wx*vx + wy*vy;
+      const c2 = vx*vx + vy*vy;
+      let t = (c2===0)?0:(c1/c2);
+      t = clamp(t, 0, 1);
+      const px = ax + t*vx, py = ay + t*vy;
+      const dx = x-px, dy = y-py;
+      if(dx*dx + dy*dy <= rr) l.active = false;
+    }
+  }
+
+  function setPointerFromEvent(e){
+    const rect = canvas.getBoundingClientRect();
+    if(e.touches && e.touches[0]){
+      pointer.x = e.touches[0].clientX - rect.left;
+      pointer.y = e.touches[0].clientY - rect.top;
+    } else {
+      pointer.x = e.clientX - rect.left;
+      pointer.y = e.clientY - rect.top;
+    }
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    setPointerFromEvent(e);
+    pointer.down = true;
+    pointer.shift = e.shiftKey;
+    if(pointer.shift){
+      cutLinks(pointer.x, pointer.y, CUT_RADIUS);
+    } else {
+      pointer.grabbed = nearestPoint(pointer.x, pointer.y, PICK_RADIUS);
+      // “aggancio” più deciso: azzera velocità
+      if(pointer.grabbed && !pointer.grabbed.pinned){
+        pointer.grabbed.px = pointer.grabbed.x;
+        pointer.grabbed.py = pointer.grabbed.y;
+      }
+    }
+    canvas.setPointerCapture(e.pointerId);
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    setPointerFromEvent(e);
+    pointer.shift = e.shiftKey;
+    if(!pointer.down) return;
+
+    if(pointer.shift){
+      cutLinks(pointer.x, pointer.y, CUT_RADIUS);
+    } else if(pointer.grabbed && !pointer.grabbed.pinned){
+      // trascinamento “duro”: sposta il punto e un po' anche il prev
+      const g = pointer.grabbed;
+      const dx = pointer.x - g.x;
+      const dy = pointer.y - g.y;
+      g.x += dx * 0.85;
+      g.y += dy * 0.85;
+      g.px += dx * 0.55;
+      g.py += dy * 0.55;
+    }
+  });
+
+  canvas.addEventListener('pointerup', (e) => {
+    pointer.down = false;
+    pointer.grabbed = null;
+    try { canvas.releasePointerCapture(e.pointerId); } catch {}
+  });
+
+  // doppio click/tap = reset
+  let lastTap = 0;
+  canvas.addEventListener('pointerup', () => {
+    const now = performance.now();
+    if(now - lastTap < 320) reset();
+    lastTap = now;
+  });
+
+  // ---------- render ----------
+  function draw(){
+    // background
+    ctx.fillStyle = '#050805';
+    ctx.fillRect(0,0,W,H);
+
+    // simulate
+    for(const p of points) p.verlet();
+    for(let k=0; k<ITER; k++){
+      for(const l of links) l.satisfy();
+
+      // bound
+      for(const p of points){
+        if(p.pinned) continue;
+        p.x = clamp(p.x, 2, W-2);
+        p.y = clamp(p.y, 2, H-2);
+      }
+    }
+
+    // draw links (wireframe)
+    ctx.lineCap = 'round';
+    for(const l of links){
+      if(!l.active) continue;
+      const ax=l.a.x, ay=l.a.y, bx=l.b.x, by=l.b.y;
+      const d = Math.hypot(bx-ax, by-ay);
+
+      // line width reacts to strain a bit
+      const t = clamp(d / l.rest, 0.7, 1.6);
+      const w = clamp((2.1 - (t-0.7)) * 1.2, LINE_W_MIN, LINE_W_MAX);
+
+      ctx.lineWidth = w;
+      ctx.strokeStyle = 'rgba(120,255,140,0.85)';
+      ctx.beginPath();
+      ctx.moveTo(ax,ay);
+      ctx.lineTo(bx,by);
+      ctx.stroke();
+    }
+
+    // pointer indicator
+    ctx.fillStyle = pointer.shift ? 'rgba(255,180,80,0.9)' : 'rgba(180,255,200,0.9)';
+    ctx.beginPath();
+    ctx.arc(pointer.x, pointer.y, 4, 0, Math.PI*2);
+    ctx.fill();
+
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
