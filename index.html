@@ -12,7 +12,8 @@
       font:12px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;
       color:#b6ffbf;opacity:.92;user-select:none;
       background:rgba(0,0,0,.25);padding:8px 10px;border-radius:10px;
-      border:1px solid rgba(182,255,191,.2)
+      border:1px solid rgba(182,255,191,.2);
+      max-width: 420px;
     }
     .hud b{color:#d7ffdd}
     .btn{
@@ -22,6 +23,7 @@
       cursor:pointer;
       background:rgba(0,0,0,.25);
     }
+    .err{margin-top:6px;color:#ffd2d2;opacity:.95;white-space:pre-wrap}
   </style>
 </head>
 <body>
@@ -31,16 +33,18 @@
     Hold & drag = crea vuoti + scrivi groove<br>
     Shift = taglia (tear) • Doppio tap/click = reset<br>
     <span class="btn" id="audioBtn">▶ START AUDIO</span>
+    <div class="err" id="err"></div>
   </div>
 
 <script>
 (() => {
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { alpha:false });
-  const hud = document.getElementById('hud');
   const audioBtn = document.getElementById('audioBtn');
+  const errBox = document.getElementById('err');
 
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  const logErr = (m)=>{ errBox.textContent = String(m||""); };
 
   // ---------- resize ----------
   let W=0,H=0,DPR=1;
@@ -57,18 +61,14 @@
   // ---------- cloth params ----------
   let COLS=50, ROWS=28, SPACING=16;
   let GRAV=0.42, FRICTION=0.992;
-  let ITER=5;
-  let TEAR_DIST=32;
-  let FIELD_R=80;          // raggio “vuoto”
-  let FIELD_STRENGTH=2.8;  // forza repulsiva
-  let CUT_RADIUS=18;
+  let ITER=5, TEAR_DIST=32;
+  let FIELD_R=80, FIELD_STRENGTH=2.8, CUT_RADIUS=18;
 
   function adapt(){
     const base = Math.min(W,H);
     SPACING = clamp((base/40)|0, 10, 22);
     COLS = clamp(((W/SPACING)|0)-2, 28, 74);
     ROWS = clamp(((H/SPACING)|0)-8, 18, 54);
-
     TEAR_DIST = SPACING * 2.2;
     FIELD_R = SPACING * 5.0;
     CUT_RADIUS = SPACING * 1.25;
@@ -80,17 +80,11 @@
   const TRACKS = 4; // 0 kick, 1 snare, 2 hat, 3 bass
   let bpm = 128;
   const pattern = Array.from({length: TRACKS}, ()=> Array(STEPS).fill(0));
-  // seed groove base
-  // kick: 0, 4, 8, 12
   [0,4,8,12].forEach(s=>pattern[0][s]=1);
-  // snare: 4, 12
   [4,12].forEach(s=>pattern[1][s]=1);
-  // hat: offbeat
   [2,6,10,14].forEach(s=>pattern[2][s]=1);
-  // bass: semplice
   [0,7,8,15].forEach(s=>pattern[3][s]=1);
 
-  // fascia groove (in basso)
   function grooveBandRect(){
     const h = clamp((H*0.20)|0, 120, 220);
     return { x: 20, y: H - h - 20, w: W - 40, h };
@@ -98,9 +92,7 @@
 
   // ---------- structures ----------
   class Point{
-    constructor(x,y,pinned=false){
-      this.x=x; this.y=y; this.px=x; this.py=y; this.pinned=pinned;
-    }
+    constructor(x,y,pinned=false){ this.x=x; this.y=y; this.px=x; this.py=y; this.pinned=pinned; }
     verlet(){
       if(this.pinned) return;
       const vx=(this.x-this.px)*FRICTION;
@@ -142,7 +134,6 @@
         points.push(new Point(px,py,pinned));
       }
     }
-
     for(let y=0;y<ROWS;y++){
       for(let x=0;x<COLS;x++){
         if(x<COLS-1) links.push(new Link(points[idx(x,y)], points[idx(x+1,y)], SPACING));
@@ -158,10 +149,7 @@
     }
   }
 
-  function reset(){
-    adapt();
-    build();
-  }
+  function reset(){ adapt(); build(); }
   reset();
 
   // ---------- pointer ----------
@@ -169,13 +157,8 @@
 
   function setPointer(e){
     const r=canvas.getBoundingClientRect();
-    if(e.touches && e.touches[0]){
-      pointer.x = e.touches[0].clientX - r.left;
-      pointer.y = e.touches[0].clientY - r.top;
-    } else {
-      pointer.x = e.clientX - r.left;
-      pointer.y = e.clientY - r.top;
-    }
+    pointer.x = (e.clientX ?? (e.touches?.[0]?.clientX ?? 0)) - r.left;
+    pointer.y = (e.clientY ?? (e.touches?.[0]?.clientY ?? 0)) - r.top;
   }
 
   function cutLinks(x,y,r){
@@ -194,7 +177,6 @@
     }
   }
 
-  // --- void field (repulsore) ---
   function applyVoidField(){
     if(!pointer.down || pointer.shift) return;
     const cx=pointer.x, cy=pointer.y, R=FIELD_R, R2=R*R;
@@ -212,33 +194,27 @@
     }
   }
 
-  // ---------- groove “paint” ----------
   function paintGrooveFromPointer(){
     if(!pointer.down || pointer.shift) return;
-
     const band = grooveBandRect();
-    // se sei nella fascia, “pittura” pattern
-    if(pointer.x < band.x || pointer.x > band.x+band.w ||
-       pointer.y < band.y || pointer.y > band.y+band.h) return;
-
+    if(pointer.x < band.x || pointer.x > band.x+band.w || pointer.y < band.y || pointer.y > band.y+band.h) return;
     const col = clamp(Math.floor(((pointer.x - band.x)/band.w) * STEPS), 0, STEPS-1);
     const row = clamp(Math.floor(((pointer.y - band.y)/band.h) * TRACKS), 0, TRACKS-1);
-
-    // toggle “soft” (evita flicker continuo): set ON mentre trascini
     pattern[row][col] = 1;
   }
 
-  // ---------- Web Audio (mini drum synth) ----------
+  // ---------- Web Audio ----------
   let audio = null;
 
   function createAudio(){
     const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) throw new Error("AudioContext non supportato dal browser.");
     const ac = new AC({ latencyHint: "interactive" });
+
     const master = ac.createGain();
     master.gain.value = 0.35;
     master.connect(ac.destination);
 
-    // noise buffer (per snare/hat)
     const noiseBuf = ac.createBuffer(1, ac.sampleRate * 1.0, ac.sampleRate);
     const data = noiseBuf.getChannelData(0);
     for(let i=0;i<data.length;i++) data[i] = (Math.random()*2-1);
@@ -285,29 +261,26 @@
       const o = ac.createOscillator();
       o.type = "triangle";
       const g = envGain(t, 0.003, 0.22, 0.35);
-      // 4 note “scala” semplice
-      const notes = [55, 65.4, 73.4, 82.4]; // A1/C2/D2/E2-ish
+      const notes = [55, 65.4, 73.4, 82.4];
       o.frequency.setValueAtTime(notes[step % notes.length], t);
       o.connect(g).connect(master);
       o.start(t); o.stop(t+0.28);
     }
 
-    // scheduler (lookahead)
     let step = 0;
     let nextTime = 0;
-    const lookahead = 0.10; // sec
-    const interval = 25;    // ms
+    const lookahead = 0.10;
+    const interval = 25;
     let timer = null;
 
     function schedule(){
       const spb = 60 / bpm;
-      const stepDur = spb / 4; // 16th
+      const stepDur = spb / 4;
       while(nextTime < ac.currentTime + lookahead){
         if(pattern[0][step]) kick(nextTime);
         if(pattern[1][step]) snare(nextTime);
         if(pattern[2][step]) hat(nextTime);
         if(pattern[3][step]) bass(nextTime, step);
-
         step = (step + 1) % STEPS;
         nextTime += stepDur;
       }
@@ -325,23 +298,39 @@
     return { ac, start, stop, isRunning: ()=>!!timer };
   }
 
-  audioBtn.addEventListener('click', async ()=>{
-    if(!audio){
-      audio = createAudio();
-      await audio.ac.resume();
-      audio.start();
-      audioBtn.textContent = "■ STOP AUDIO";
-      return;
+  function ensureAudioResumed(){
+    if(!audio) return;
+    if(audio.ac.state !== "running"){
+      audio.ac.resume().catch(e=>logErr("Audio resume error: " + e));
     }
-    if(audio.isRunning()){
-      audio.stop();
-      audioBtn.textContent = "▶ START AUDIO";
-    } else {
-      await audio.ac.resume();
-      audio.start();
-      audioBtn.textContent = "■ STOP AUDIO";
+  }
+
+  audioBtn.addEventListener('click', (e)=>{
+    try{
+      logErr("");
+      if(!audio){
+        audio = createAudio();
+        audio.ac.resume().then(()=>{
+          audio.start();
+          audioBtn.textContent = "■ STOP AUDIO";
+        }).catch(err=>logErr("Audio start error: " + err));
+        return;
+      }
+      if(audio.isRunning()){
+        audio.stop();
+        audioBtn.textContent = "▶ START AUDIO";
+      } else {
+        audio.ac.resume().then(()=>{
+          audio.start(); audioBtn.textContent = "■ STOP AUDIO";
+        }).catch(err=>logErr("Audio resume error: " + err));
+      }
+    } catch(err){
+      logErr(err);
     }
   });
+
+  // extra unlock: qualsiasi gesto sulla canvas prova a fare resume
+  canvas.addEventListener('pointerdown', ()=>ensureAudioResumed(), {passive:true});
 
   // ---------- events ----------
   canvas.addEventListener('pointerdown', (e)=>{
@@ -363,27 +352,21 @@
     try{ canvas.releasePointerCapture(e.pointerId); }catch{}
   });
 
-  // double click/tap reset
   let lastTap=0;
   canvas.addEventListener('pointerup', ()=>{
     const now=performance.now();
     if(now-lastTap<320){
-      // clear pattern to zeros + reset cloth
       for(let r=0;r<TRACKS;r++) for(let s=0;s<STEPS;s++) pattern[r][s]=0;
       reset();
     }
     lastTap=now;
   });
 
-  // ---------- render helpers ----------
   function drawGrooveBand(){
     const band = grooveBandRect();
-
-    // background band
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.fillRect(band.x, band.y, band.w, band.h);
 
-    // grid
     ctx.strokeStyle = 'rgba(120,255,140,0.18)';
     ctx.lineWidth = 1;
     for(let s=0;s<=STEPS;s++){
@@ -395,7 +378,6 @@
       ctx.beginPath(); ctx.moveTo(band.x, y); ctx.lineTo(band.x+band.w, y); ctx.stroke();
     }
 
-    // steps on
     for(let r=0;r<TRACKS;r++){
       for(let s=0;s<STEPS;s++){
         if(!pattern[r][s]) continue;
@@ -406,25 +388,14 @@
         ctx.fillRect(x0+2, y0+2, w-4, h-4);
       }
     }
-
-    // pointer hint
-    if(pointer.down && !pointer.shift){
-      ctx.strokeStyle = 'rgba(180,255,200,0.9)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(band.x, band.y, band.w, band.h);
-    }
   }
 
-  // ---------- main loop ----------
   function frame(){
     ctx.fillStyle='#050805';
     ctx.fillRect(0,0,W,H);
 
-    // cloth
     for(const p of points) p.verlet();
     applyVoidField();
-
-    // groove paint (scrivi pattern mentre tieni premuto)
     paintGrooveFromPointer();
 
     for(let k=0;k<ITER;k++){
@@ -436,7 +407,6 @@
       }
     }
 
-    // draw links
     ctx.lineCap='round';
     for(const l of links){
       if(!l.active) continue;
@@ -449,16 +419,15 @@
       ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
     }
 
-    // groove band UI
     drawGrooveBand();
 
-    // pointer dot
     ctx.fillStyle = pointer.shift ? 'rgba(255,180,80,0.9)' : 'rgba(180,255,200,0.9)';
     ctx.beginPath(); ctx.arc(pointer.x, pointer.y, 4, 0, Math.PI*2); ctx.fill();
 
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+
 })();
 </script>
 </body>
