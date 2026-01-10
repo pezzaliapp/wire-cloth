@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>Wire Cloth + Groove — FAST Universal (Stable + Scars)</title>
+  <title>Wire Cloth + Groove — FAST Stable Cut</title>
   <style>
     :root{
       --bg:#050805; --fg:#b6ffbf; --fg2:#d7ffdd;
@@ -71,7 +71,6 @@
     .hint{margin-top:6px;opacity:.90}
     .err{margin-top:8px;color:#ffd2d2;white-space:pre-wrap}
 
-    /* Menu overlay */
     .overlay{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.48);display:none;backdrop-filter: blur(3px);-webkit-backdrop-filter: blur(3px)}
     .overlay.show{display:block}
     .panel{
@@ -157,7 +156,7 @@
           <div class="lbl">Mobile safe</div>
           <input type="checkbox" id="mobileSafe"/>
         </div>
-        <div class="sub">Riduce carico (FPS/iter/griglia/particles).</div>
+        <div class="sub">Riduce carico (FPS/iter/griglia).</div>
       </div>
 
       <div class="item">
@@ -167,57 +166,21 @@
       </div>
 
       <div class="item">
-        <div class="lbl">Physics iter (active)</div>
-        <input type="range" id="iter" min="1" max="8" step="1" value="3"/>
+        <div class="lbl">Physics iter</div>
+        <input type="range" id="iter" min="1" max="6" step="1" value="3"/>
         <div class="sub"><span id="iterOut">3</span></div>
       </div>
 
       <div class="item">
-        <div class="lbl">Idle mode</div>
-        <input type="range" id="idle" min="1" max="6" step="1" value="3"/>
-        <div class="sub">disegna 1 frame ogni <span id="idleOut">3</span> (quando non tocchi)</div>
+        <div class="lbl">Grid size</div>
+        <input type="range" id="grid" min="24" max="64" step="1" value="44"/>
+        <div class="sub">più alto = più fitto (più lento)</div>
       </div>
 
       <div class="item">
-        <div class="lbl">Grid (visual)</div>
-        <input type="range" id="grid" min="20" max="70" step="1" value="48"/>
-        <div class="sub">più alto = più linee (più lento)</div>
-      </div>
-
-      <div class="item">
-        <div class="lbl">Particles (pezzi)</div>
-        <input type="range" id="pieces" min="0" max="160" step="1" value="60"/>
-        <div class="sub">max <span id="piecesOut">60</span></div>
-      </div>
-
-      <div class="item">
-        <div class="lbl">Glow</div>
-        <input type="range" id="glow" min="0" max="100" step="1" value="35"/>
-        <div class="sub"><span id="glowOut">0.35</span></div>
-      </div>
-
-      <div class="item">
-        <div class="lbl">Trail</div>
-        <input type="range" id="trail" min="0" max="95" step="1" value="75"/>
-        <div class="sub"><span id="trailOut">0.75</span></div>
-      </div>
-
-      <div class="item">
-        <div class="lbl">React</div>
-        <input type="range" id="react" min="0" max="100" step="1" value="50"/>
-        <div class="sub"><span id="reactOut">50</span></div>
-      </div>
-
-      <div class="item">
-        <div class="lbl">Gravity</div>
-        <input type="range" id="grav" min="10" max="120" step="1" value="42"/>
-        <div class="sub"><span id="gravOut">0.42</span></div>
-      </div>
-
-      <div class="item">
-        <div class="lbl">Wind</div>
-        <input type="range" id="wind" min="-80" max="80" step="1" value="0"/>
-        <div class="sub"><span id="windOut">0.00</span></div>
+        <div class="lbl">Anchor</div>
+        <input type="range" id="anch" min="0" max="60" step="1" value="18"/>
+        <div class="sub">stabilità (no scioglimento)</div>
       </div>
 
       <div class="item">
@@ -238,7 +201,6 @@
 
 <script>
 (() => {
-  // ----- DOM
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { alpha:false });
 
@@ -278,102 +240,75 @@
   const mobileSafeEl = document.getElementById('mobileSafe');
   const fpsEl   = document.getElementById('fps');
   const iterEl  = document.getElementById('iter');
-  const idleEl  = document.getElementById('idle');
   const gridEl  = document.getElementById('grid');
-  const piecesEl= document.getElementById('pieces');
-  const glowEl  = document.getElementById('glow');
-  const trailEl = document.getElementById('trail');
-  const reactEl = document.getElementById('react');
-  const gravEl  = document.getElementById('grav');
-  const windEl  = document.getElementById('wind');
+  const anchEl  = document.getElementById('anch');
   const cutrEl  = document.getElementById('cutr');
 
   const fpsOut  = document.getElementById('fpsOut');
   const iterOut = document.getElementById('iterOut');
-  const idleOut = document.getElementById('idleOut');
-  const piecesOut = document.getElementById('piecesOut');
-  const glowOut = document.getElementById('glowOut');
-  const trailOut = document.getElementById('trailOut');
-  const reactOut  = document.getElementById('reactOut');
-  const gravOut   = document.getElementById('gravOut');
-  const windOut   = document.getElementById('windOut');
-  const cutrOut   = document.getElementById('cutrOut');
+  const cutrOut = document.getElementById('cutrOut');
 
-  // ----- utils
-  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-  const fmt2 = (n)=>(Math.round(n*100)/100).toFixed(2);
 
   function logErr(m){ errBox.textContent = m ? String(m) : ""; }
   function setState(t){ statePill.textContent = t; }
   function setMode(t){ modePill.textContent = t; }
 
-  // Prevent HUD/Menu from drawing on canvas
   ["pointerdown","pointermove","pointerup","click","touchstart","touchmove","touchend","wheel"].forEach(ev=>{
     hud.addEventListener(ev, e=>{ e.stopPropagation(); }, {passive:false});
     panel.addEventListener(ev, e=>{ e.stopPropagation(); }, {passive:false});
   });
 
-  // ----- state (FAST defaults)
   const state = {
-    bpm: 110,
-    swing: 0.58,
-    erase: false,
-    cut: false,
-
-    mobileSafe: isMobile,
-
-    // performance knobs
-    fps: isMobile ? 24 : 30,
-    iter: isMobile ? 2 : 3,         // physics iterations when active
-    idleSkip: isMobile ? 3 : 2,     // draw 1 frame every N when idle
-    grid: isMobile ? 42 : 48,       // "visual density" target
-    piecesMax: isMobile ? 40 : 60,
-
-    // visuals/physics
-    react: 50,
+    bpm:110, swing:0.58,
+    erase:false, cut:false,
+    mobileSafe:isMobile,
+    fps: isMobile ? 30 : 45,
+    iter: isMobile ? 3 : 4,
+    grid: isMobile ? 40 : 44,
+    anchor: 0.018,   // stabilità
     grav: 0.42,
     wind: 0.00,
-    trail: 0.75,
-    glow: 0.35,
+    trail: 0.78,
     cutRadius: 18,
   };
 
-  // ----- canvas sizing
+  // --- sizing
   let W=0,H=0,DPR=1;
 
-  // --- Scar layer (tracce permanenti dei tagli)
-  const scar = document.createElement('canvas');
-  const scarCtx = scar.getContext('2d', { alpha:true });
+  // pre-render scanline BG (zero loop cost)
+  const bg = document.createElement('canvas');
+  const bgc = bg.getContext('2d', {alpha:false});
+  function rebuildBG(){
+    bg.width = canvas.width;
+    bg.height = canvas.height;
+    bgc.setTransform(1,0,0,1,0,0);
+    bgc.fillStyle = '#050805';
+    bgc.fillRect(0,0,bg.width,bg.height);
 
-  function resizeScar(){
-    scar.width  = canvas.width;
-    scar.height = canvas.height;
-    scarCtx.setTransform(DPR,0,0,DPR,0,0);
-  }
-  function clearScar(){
-    scarCtx.setTransform(DPR,0,0,DPR,0,0);
-    scarCtx.clearRect(0,0,W,H);
+    bgc.globalAlpha = 0.09;
+    bgc.fillStyle = '#0b1b0f';
+    for(let y=0;y<bg.height;y+=10) bgc.fillRect(0,y,bg.width,1);
+    bgc.globalAlpha = 1;
   }
 
   function resize(){
     const d = devicePixelRatio || 1;
-    DPR = Math.max(1, Math.min(state.mobileSafe ? 1.35 : 2.0, d));
+    DPR = Math.max(1, Math.min(state.mobileSafe ? 1.35 : 1.8, d));
     W = innerWidth|0; H = innerHeight|0;
     canvas.width  = (W*DPR)|0;
     canvas.height = (H*DPR)|0;
     canvas.style.width = W+'px';
     canvas.style.height = H+'px';
     ctx.setTransform(DPR,0,0,DPR,0,0);
-    resizeScar();
+    rebuildBG();
   }
 
-  // ----- groove
-  const STEPS=16;
-  const TRACKS=5;
+  // --- groove
+  const STEPS=16, TRACKS=5;
   const pattern = Array.from({length:TRACKS}, ()=>Array(STEPS).fill(0));
-
   function seedAfro(){
     for(let r=0;r<TRACKS;r++) pattern[r].fill(0);
     [0,3,7,8,11,14].forEach(s => pattern[0][s]=1);
@@ -383,154 +318,166 @@
     [0,7,10,15].forEach(s => pattern[4][s]=1);
   }
   seedAfro();
-
   function grooveBandRect(){
     const h = clamp((H*0.22)|0, 120, 220);
     return { x: 16, y: H - h - 16, w: W - 32, h };
   }
 
-  // ----- cloth (FAST but STABLE)
-  let COLS=48, ROWS=28, SPACING=16;
-  let TEAR_DIST=32;
+  // --- cloth (grid-mapped cutting)
+  let COLS=44, ROWS=26, SP=16, TEAR=32;
+  let startX=12, startY=90; // updated in rebuild
+  const idx=(x,y)=>y*COLS+x;
 
-  class Point{
-    constructor(x,y,pinned=false){ this.x=x; this.y=y; this.px=x; this.py=y; this.pinned=pinned; }
-    verlet(){
-      if(this.pinned) return;
+  class P{
+    constructor(x,y,pin){
+      this.x=x; this.y=y; this.px=x; this.py=y;
+      this.ox=x; this.oy=y;
+      this.pin=pin;
+    }
+    step(){
+      if(this.pin) return;
       const vx=(this.x-this.px)*0.992;
       const vy=(this.y-this.py)*0.992;
       this.px=this.x; this.py=this.y;
-      this.x += vx + state.wind;
-      this.y += vy + state.grav;
+
+      // soft anchor (stabilità)
+      const ax=(this.ox-this.x)*state.anchor;
+      const ay=(this.oy-this.y)*state.anchor;
+
+      this.x += vx + state.wind + ax;
+      this.y += vy + state.grav + ay;
+
+      // bounds clamp (evita sparire)
+      if(this.y < 0) this.y = 0;
+      if(this.y > H-10) this.y = H-10;
+      if(this.x < 0) this.x = 0;
+      if(this.x > W) this.x = W;
     }
   }
-  class Link{
-    constructor(a,b,rest){ this.a=a; this.b=b; this.rest=rest; this.active=true; }
-    satisfy(){
-      if(!this.active) return;
+  class L{
+    constructor(a,b,rest){
+      this.a=a; this.b=b; this.r=rest; this.on=true;
+    }
+    sat(){
+      if(!this.on) return;
       const ax=this.a.x, ay=this.a.y, bx=this.b.x, by=this.b.y;
       const dx=bx-ax, dy=by-ay;
       const d=Math.hypot(dx,dy);
       if(d===0) return;
-      if(d>TEAR_DIST){
-        this.active=false;
-        addScar(ax,ay,bx,by);
-        spawnTearBits(ax,ay,bx,by);
-        return;
-      }
-      const diff=(d-this.rest)/d;
+      if(d>TEAR){ this.on=false; return; }
+      const diff=(d-this.r)/d;
       const ox=dx*0.5*diff, oy=dy*0.5*diff;
-      if(!this.a.pinned){ this.a.x+=ox; this.a.y+=oy; }
-      if(!this.b.pinned){ this.b.x-=ox; this.b.y-=oy; }
+      if(!this.a.pin){ this.a.x+=ox; this.a.y+=oy; }
+      if(!this.b.pin){ this.b.x-=ox; this.b.y-=oy; }
     }
   }
-  let points=[], links=[];
-  const idx=(x,y)=>y*COLS+x;
 
-  function addScar(ax,ay,bx,by){
-    // linea "incisa" che resta (sotto la cloth)
-    scarCtx.save();
-    scarCtx.globalAlpha = 0.32;
-    scarCtx.lineWidth = Math.max(1, SPACING * 0.12);
-    scarCtx.strokeStyle = 'rgba(120,255,140,0.9)';
-    scarCtx.shadowColor = 'rgba(120,255,140,0.35)';
-    scarCtx.shadowBlur  = state.glow * 14;
-    scarCtx.beginPath();
-    scarCtx.moveTo(ax,ay);
-    scarCtx.lineTo(bx,by);
-    scarCtx.stroke();
-    scarCtx.restore();
-  }
+  let pts=[], links=[];
+  // adjacency: per-point list of link indices (taglio locale)
+  let adj=[];
 
   function adaptGrid(){
     const base = Math.min(W,H);
-    SPACING = clamp((base/40)|0, 10, 20);
+    SP = clamp((base/42)|0, 10, 18);
 
     const hudH = Math.ceil(hud.getBoundingClientRect().height);
     const band = grooveBandRect();
-    const usableH = Math.max(180, band.y - (hudH + 16));
+    const usableH = Math.max(170, band.y - (hudH + 16));
     const usableW = W - 24;
 
-    const maxCols = clamp(state.grid, 20, state.mobileSafe ? 48 : 60);
-    COLS = clamp(((usableW/SPACING)|0)-2, 22, maxCols);
+    const maxCols = clamp(state.grid, 24, state.mobileSafe ? 46 : 60);
+    COLS = clamp(((usableW/SP)|0)-2, 24, maxCols);
 
     const targetRows = Math.round(COLS * (usableH/usableW));
-    ROWS = clamp(targetRows, 14, state.mobileSafe ? 32 : 40);
+    ROWS = clamp(targetRows, 14, state.mobileSafe ? 30 : 38);
 
-    TEAR_DIST = SPACING * 2.2;
+    TEAR = SP * 2.25;
+
+    startX = 12;
+    startY = hudH + 16;
   }
 
   function rebuildCloth(){
     adaptGrid();
-    points=[]; links=[];
-    const hudH = Math.ceil(hud.getBoundingClientRect().height);
-    const startX=12;
-    const startY=hudH+16;
+    pts=[]; links=[]; adj=[];
+    adj.length = COLS*ROWS;
+    for(let i=0;i<adj.length;i++) adj[i]=[];
 
+    // points
     for(let y=0;y<ROWS;y++){
       for(let x=0;x<COLS;x++){
-        const px=startX+x*SPACING;
-        const py=startY+y*SPACING;
-        const pinned=(y===0)&&(x%2===0);
-        points.push(new Point(px,py,pinned));
+        const px=startX+x*SP;
+        const py=startY+y*SP;
+        // più pin (stabilità) ma economico
+        const pin = (y===0) && (x%2===0 || x%6===0);
+        pts.push(new P(px,py,pin));
       }
     }
 
-    // structural
+    // links: structural only (veloci) + 1 shear sparse per stabilità
+    const addLink=(ia, ib, rest)=>{
+      const li = links.length;
+      links.push(new L(pts[ia], pts[ib], rest));
+      adj[ia].push(li);
+      adj[ib].push(li);
+    };
+
     for(let y=0;y<ROWS;y++){
       for(let x=0;x<COLS;x++){
-        if(x<COLS-1) links.push(new Link(points[idx(x,y)], points[idx(x+1,y)], SPACING));
-        if(y<ROWS-1) links.push(new Link(points[idx(x,y)], points[idx(x,y+1)], SPACING));
+        const i=idx(x,y);
+        if(x<COLS-1) addLink(i, idx(x+1,y), SP);
+        if(y<ROWS-1) addLink(i, idx(x,y+1), SP);
       }
     }
 
-    // shear diagonals (sparse 50%) + bend links (every 2) -> STABILITÀ senza tornare pesante
-    const diag = Math.hypot(SPACING, SPACING);
-
+    const diag = Math.hypot(SP,SP);
     for(let y=0;y<ROWS-1;y++){
       for(let x=0;x<COLS-1;x++){
         if(((x+y)&1)===0){
-          links.push(new Link(points[idx(x,y)],   points[idx(x+1,y+1)], diag));
-          links.push(new Link(points[idx(x+1,y)], points[idx(x,y+1)],   diag));
+          addLink(idx(x,y), idx(x+1,y+1), diag);
         }
       }
     }
+  }
 
-    for(let y=0;y<ROWS;y++){
-      for(let x=0;x<COLS;x++){
-        if(x<COLS-2) links.push(new Link(points[idx(x,y)], points[idx(x+2,y)], SPACING*2));
-        if(y<ROWS-2) links.push(new Link(points[idx(x,y)], points[idx(x,y+2)], SPACING*2));
+  // --- fast cut: taglio locale basato su coordinate griglia
+  function cutAt(x,y,r){
+    const gx = Math.round((x - startX)/SP);
+    const gy = Math.round((y - startY)/SP);
+    const rad = Math.ceil(r/SP)+2;
+
+    const x0 = clamp(gx-rad, 0, COLS-1);
+    const x1 = clamp(gx+rad, 0, COLS-1);
+    const y0 = clamp(gy-rad, 0, ROWS-1);
+    const y1 = clamp(gy+rad, 0, ROWS-1);
+
+    const rr = r*r;
+
+    for(let yy=y0; yy<=y1; yy++){
+      for(let xx=x0; xx<=x1; xx++){
+        const pi = idx(xx,yy);
+        const list = adj[pi];
+        for(let k=0;k<list.length;k++){
+          const li = list[k];
+          const l = links[li];
+          if(!l.on) continue;
+          const ax=l.a.x, ay=l.a.y, bx=l.b.x, by=l.b.y;
+
+          // distanza punto-segmento (leggera)
+          const vx=bx-ax, vy=by-ay;
+          const wx=x-ax, wy=y-ay;
+          const c2=vx*vx+vy*vy;
+          let t=c2===0?0:(wx*vx+wy*vy)/c2;
+          t=clamp(t,0,1);
+          const px=ax+t*vx, py=ay+t*vy;
+          const dx=x-px, dy=y-py;
+          if(dx*dx+dy*dy<=rr) l.on=false;
+        }
       }
     }
   }
 
-  // ----- particles
-  const bits=[];
-  function spawnTearBits(ax,ay,bx,by){
-    const max=state.piecesMax;
-    if(max<=0) return;
-    const n = state.mobileSafe ? 1 : 2;
-    for(let i=0;i<n;i++){
-      if(bits.length>max) bits.shift();
-      const x=ax+(bx-ax)*Math.random();
-      const y=ay+(by-ay)*Math.random();
-      const ang=Math.random()*Math.PI*2;
-      const sp=0.6+Math.random()*1.4;
-      bits.push({x,y,vx:Math.cos(ang)*sp+state.wind*0.4, vy:Math.sin(ang)*sp-0.2, r:1.0+Math.random()*2.0, life:1.0});
-    }
-  }
-  function updateBits(){
-    for(let i=bits.length-1;i>=0;i--){
-      const b=bits[i];
-      b.vx*=0.992;
-      b.vy=b.vy*0.992 + state.grav*0.30;
-      b.x+=b.vx; b.y+=b.vy;
-      b.life-=0.015 + (state.mobileSafe?0.006:0);
-      if(b.x<-50||b.x>W+50||b.y>H+80||b.life<=0) bits.splice(i,1);
-    }
-  }
-
-  // ----- pointer + groove edit
+  // --- pointer + groove paint
   const pointer={x:W/2,y:H/2,down:false,shift:false};
   let lastX=0,lastY=0,lastT=0,dragAccent=0;
 
@@ -548,50 +495,9 @@
     lastX=pointer.x; lastY=pointer.y; lastT=now;
   }
 
-  function cutLinks(x,y,r){
-    const rr=r*r;
-    for(const l of links){
-      if(!l.active) continue;
-      const ax=l.a.x, ay=l.a.y, bx=l.b.x, by=l.b.y;
-      const vx=bx-ax, vy=by-ay;
-      const wx=x-ax, wy=y-ay;
-      const c2=vx*vx+vy*vy;
-      let t=c2===0?0:(wx*vx+wy*vy)/c2;
-      t=clamp(t,0,1);
-      const px=ax+t*vx, py=ay+t*vy;
-      const dx=x-px, dy=y-py;
-      if(dx*dx+dy*dy<=rr){
-        l.active=false;
-        addScar(ax,ay,bx,by);
-        spawnTearBits(ax,ay,bx,by);
-      }
-    }
-  }
-
-  function applyField(){
-    if(!pointer.down) return;
-    const cx=pointer.x, cy=pointer.y;
-    const R=SPACING*5.0, R2=R*R;
-    const strength=(state.react/100)*(state.mobileSafe?2.0:2.6);
-
-    for(const p of points){
-      if(p.pinned) continue;
-      const dx=p.x-cx, dy=p.y-cy;
-      const d2=dx*dx+dy*dy;
-      if(d2>R2) continue;
-      const d=Math.sqrt(d2)||0.0001;
-      const t=1-(d/R);
-      const s=(t*t)*strength*(1+dragAccent*0.8);
-      const nx=dx/d, ny=dy/d;
-      p.x+=nx*s*6; p.y+=ny*s*6;
-      p.px+=nx*s*3; p.py+=ny*s*3;
-    }
-  }
-
   function toggleCellAt(x,y){
     const band=grooveBandRect();
-    const inBand = x>=band.x&&x<=band.x+band.w&&y>=band.y&&y<=band.y+band.h;
-    if(!inBand) return false;
+    if(!(x>=band.x&&x<=band.x+band.w&&y>=band.y&&y<=band.y+band.h)) return false;
     const col=clamp(Math.floor(((x-band.x)/band.w)*STEPS),0,STEPS-1);
     const row=clamp(Math.floor(((y-band.y)/band.h)*TRACKS),0,TRACKS-1);
     if(state.erase) pattern[row][col]=0;
@@ -600,24 +506,13 @@
   }
 
   function paintGroove(){
-    if(!pointer.down) return;
     const band=grooveBandRect();
     const inBand = pointer.x>=band.x&&pointer.x<=band.x+band.w&&pointer.y>=band.y&&pointer.y<=band.y+band.h;
-    if(inBand){
-      const col=clamp(Math.floor(((pointer.x-band.x)/band.w)*STEPS),0,STEPS-1);
-      const row=clamp(Math.floor(((pointer.y-band.y)/band.h)*TRACKS),0,TRACKS-1);
-      pattern[row][col]=state.erase?0:1;
-      return;
-    }
-    const col=clamp(Math.floor((pointer.x/W)*STEPS),0,STEPS-1);
-    const baseRow=clamp(Math.floor((pointer.y/H)*TRACKS),0,TRACKS-1);
-    const stepBrush = 1 + Math.floor(dragAccent*1.5); // 1..2
-    for(let dc=-stepBrush; dc<=stepBrush; dc++){
-      const s=(col+dc+STEPS)%STEPS;
-      if(Math.random() < 0.25) continue;
-      const r = baseRow;
-      pattern[r][s]=state.erase?0:1;
-    }
+    if(!inBand) return;
+
+    const col=clamp(Math.floor(((pointer.x-band.x)/band.w)*STEPS),0,STEPS-1);
+    const row=clamp(Math.floor(((pointer.y-band.y)/band.h)*TRACKS),0,TRACKS-1);
+    pattern[row][col]=state.erase?0:1;
   }
 
   canvas.addEventListener('pointerdown', (e)=>{
@@ -627,7 +522,10 @@
     lastX=pointer.x; lastY=pointer.y; lastT=performance.now(); dragAccent=0;
 
     toggleCellAt(pointer.x,pointer.y);
-    if(state.cut||pointer.shift) cutLinks(pointer.x,pointer.y,state.cutRadius);
+
+    if(state.cut || pointer.shift){
+      cutAt(pointer.x,pointer.y,state.cutRadius);
+    }
 
     try{ canvas.setPointerCapture(e.pointerId); }catch{}
   }, {passive:true});
@@ -636,7 +534,14 @@
     setPointer(e);
     pointer.shift=!!e.shiftKey;
     if(pointer.down) updateDragAccent();
-    if(pointer.down && (state.cut||pointer.shift)) cutLinks(pointer.x,pointer.y,state.cutRadius);
+
+    if(pointer.down){
+      if(state.cut || pointer.shift){
+        cutAt(pointer.x,pointer.y,state.cutRadius);
+      }else{
+        paintGroove();
+      }
+    }
   }, {passive:true});
 
   canvas.addEventListener('pointerup', (e)=>{
@@ -645,7 +550,7 @@
     try{ canvas.releasePointerCapture(e.pointerId); }catch{}
   }, {passive:true});
 
-  // double tap/click rebuild cloth (NON cancella scars: è una "ricucitura" veloce)
+  // double tap/click rebuild (solo ricuce, i tagli restano perché sono link off)
   let lastTap=0;
   canvas.addEventListener('pointerup', ()=>{
     const now=performance.now();
@@ -653,10 +558,8 @@
     lastTap=now;
   }, {passive:true});
 
-  // ----- Audio + Recorder (Stereo WAV)
-  let audio=null;
-  let lastBlob=null;
-  let lastName=null;
+  // ---- Audio + Recorder (lasciato come tuo, identico)
+  let audio=null, lastBlob=null, lastName=null;
 
   function createAudio(){
     const AC=window.AudioContext||window.webkitAudioContext;
@@ -720,13 +623,12 @@
       o.start(t); o.stop(t+0.32);
     }
 
-    // scheduler
     let step=0, nextTime=0, timer=null;
     const lookahead=0.10, interval=25;
 
     function schedule(){
       const spb=60/state.bpm;
-      const baseStep=spb/4; // 16th
+      const baseStep=spb/4;
       while(nextTime < ac.currentTime + lookahead){
         const isOff=(step%2)===1;
         const swingOffset=isOff ? (baseStep*(state.swing-0.5)) : 0;
@@ -750,7 +652,6 @@
     function stop(){ if(timer){ clearInterval(timer); timer=null; } }
     const isRunning=()=>!!timer;
 
-    // recorder (ScriptProcessor stereo)
     const rec={ node:null, bufsL:[], bufsR:[], isRec:false, sampleRate:ac.sampleRate, startPerf:0 };
     rec.node=ac.createScriptProcessor(4096,2,2);
     rec.node.onaudioprocess=(e)=>{
@@ -793,10 +694,7 @@
       return new Blob([view], {type:"audio/wav"});
     }
 
-    function startRec(){
-      rec.bufsL.length=0; rec.bufsR.length=0;
-      rec.isRec=true; rec.startPerf=performance.now();
-    }
+    function startRec(){ rec.bufsL.length=0; rec.bufsR.length=0; rec.isRec=true; rec.startPerf=performance.now(); }
     function stopRec(){
       rec.isRec=false;
       const blob=encodeWAVStereo(rec.bufsL, rec.bufsR, rec.sampleRate);
@@ -829,7 +727,6 @@
     if(!audio.isRunning()) audio.start();
   }
 
-  // REC timer UI
   let recRAF=0;
   function startRecTimer(){
     recPill.style.display="inline-block";
@@ -861,7 +758,7 @@
     downloadBlob(lastBlob, lastName || "wirecloth.wav");
   });
 
-  // ----- UI sync
+  // --- UI
   function syncUI(){
     bpmOut.textContent=state.bpm;
     swOut.textContent=state.swing.toFixed(2);
@@ -874,20 +771,11 @@
 
     fpsOut.textContent = state.fps|0;
     iterOut.textContent = state.iter|0;
-    idleOut.textContent = state.idleSkip|0;
-
-    piecesOut.textContent=state.piecesMax|0;
-    glowOut.textContent=fmt2(state.glow);
-    trailOut.textContent=fmt2(state.trail);
-    reactOut.textContent=state.react|0;
-    gravOut.textContent=fmt2(state.grav);
-    windOut.textContent=fmt2(state.wind);
-    cutrOut.textContent=state.cutRadius|0;
+    cutrOut.textContent = state.cutRadius|0;
 
     mobileSafeEl.checked=state.mobileSafe;
   }
 
-  // ----- controls
   bpmSlider.addEventListener('input', ()=>{ state.bpm=+bpmSlider.value; bpmOut.textContent=state.bpm; });
   swSlider.addEventListener('input', ()=>{ state.swing=+swSlider.value; swOut.textContent=state.swing.toFixed(2); });
 
@@ -920,13 +808,8 @@
 
   afroBtn.addEventListener('click', ()=>seedAfro());
   clearBtn.addEventListener('click', ()=>{ for(let r=0;r<TRACKS;r++) pattern[r].fill(0); });
-  resetBtn.addEventListener('click', ()=>{
-    seedAfro();
-    clearScar();          // reset "pulito"
-    rebuildCloth();
-  });
+  resetBtn.addEventListener('click', ()=>{ seedAfro(); rebuildCloth(); });
 
-  // Menu open/close
   function openMenu(){ overlay.classList.add("show"); }
   function closeMenu(){ overlay.classList.remove("show"); }
   menuBtn.addEventListener('click', openMenu);
@@ -936,72 +819,49 @@
   helpBtn.addEventListener('click', ()=>{
     logErr(
 `COME SI USA:
-• START AUDIO (obbligatorio su iPhone) → suona il groove
-• Band in basso: tap = toggle cella, drag = paint
+• START AUDIO (iPhone: necessario) → suona
+• Band in basso: tap/drag = edit pattern
 • ERASE: cancella note
-• CUT: strappa la cloth (le cicatrici restano sotto)
+• CUT: taglia cloth (ORA veloce e locale)
 REC:
 • START AUDIO → REC → STOP → SAVE WAV
-REC 4 BARS:
-• registra automaticamente 4 battute → poi SAVE WAV
 Double tap/click sul canvas = rebuild cloth`);
     closeMenu();
   });
 
   panicBtn.addEventListener('click', ()=>{
     state.mobileSafe=isMobile;
-    state.fps = state.mobileSafe ? 24 : 30;
-    state.iter = state.mobileSafe ? 2 : 3;
-    state.idleSkip = state.mobileSafe ? 3 : 2;
-    state.grid = state.mobileSafe ? 42 : 48;
-    state.piecesMax = state.mobileSafe ? 40 : 60;
-
-    state.react=50; state.grav=0.42; state.wind=0;
-    state.trail=0.75; state.glow=0.35; state.cutRadius=18;
+    state.fps = state.mobileSafe ? 30 : 45;
+    state.iter = state.mobileSafe ? 3 : 4;
+    state.grid = state.mobileSafe ? 40 : 44;
+    state.anchor = 0.018;
+    state.cutRadius = 18;
     state.cut=false; state.erase=false;
 
     mobileSafeEl.checked=state.mobileSafe;
-    fpsEl.value=state.fps; iterEl.value=state.iter; idleEl.value=state.idleSkip;
-    gridEl.value=state.grid; piecesEl.value=state.piecesMax;
-    glowEl.value=Math.round(state.glow*100); trailEl.value=Math.round(state.trail*100);
-    reactEl.value=state.react; gravEl.value=Math.round(state.grav*100); windEl.value=Math.round(state.wind*100);
-    cutrEl.value=state.cutRadius;
+    fpsEl.value=state.fps; iterEl.value=state.iter; gridEl.value=state.grid;
+    anchEl.value=18; cutrEl.value=18;
 
-    clearScar();
     resize(); rebuildCloth(); syncUI();
     closeMenu();
   });
 
-  // Menu sliders
   mobileSafeEl.addEventListener('change', ()=>{
     state.mobileSafe=!!mobileSafeEl.checked;
-
-    state.fps = state.mobileSafe ? 24 : 30;
-    state.iter = state.mobileSafe ? 2 : 3;
-    state.idleSkip = state.mobileSafe ? 3 : 2;
-    state.grid = state.mobileSafe ? 42 : 48;
-    state.piecesMax = state.mobileSafe ? 40 : 60;
-
-    fpsEl.value=state.fps; iterEl.value=state.iter; idleEl.value=state.idleSkip;
-    gridEl.value=state.grid; piecesEl.value=state.piecesMax;
-
+    state.fps = state.mobileSafe ? 30 : 45;
+    state.iter = state.mobileSafe ? 3 : 4;
+    state.grid = state.mobileSafe ? 40 : 44;
+    fpsEl.value=state.fps; iterEl.value=state.iter; gridEl.value=state.grid;
     resize(); rebuildCloth(); syncUI();
   });
 
   fpsEl.addEventListener('input', ()=>{ state.fps=+fpsEl.value; fpsOut.textContent=state.fps; });
   iterEl.addEventListener('input', ()=>{ state.iter=+iterEl.value; iterOut.textContent=state.iter; });
-  idleEl.addEventListener('input', ()=>{ state.idleSkip=+idleEl.value; idleOut.textContent=state.idleSkip; });
   gridEl.addEventListener('input', ()=>{ state.grid=+gridEl.value; rebuildCloth(); });
-  piecesEl.addEventListener('input', ()=>{ state.piecesMax=+piecesEl.value; piecesOut.textContent=state.piecesMax; });
-
-  glowEl.addEventListener('input', ()=>{ state.glow=(+glowEl.value)/100; glowOut.textContent=fmt2(state.glow); });
-  trailEl.addEventListener('input', ()=>{ state.trail=(+trailEl.value)/100; trailOut.textContent=fmt2(state.trail); });
-  reactEl.addEventListener('input', ()=>{ state.react=+reactEl.value; reactOut.textContent=state.react; });
-  gravEl.addEventListener('input', ()=>{ state.grav=(+gravEl.value)/100; gravOut.textContent=fmt2(state.grav); });
-  windEl.addEventListener('input', ()=>{ state.wind=(+windEl.value)/100; windOut.textContent=fmt2(state.wind); });
+  anchEl.addEventListener('input', ()=>{ state.anchor=(+anchEl.value)/1000; });
   cutrEl.addEventListener('input', ()=>{ state.cutRadius=+cutrEl.value; cutrOut.textContent=state.cutRadius|0; });
 
-  // ----- REC logic
+  // REC
   recBtn.addEventListener('click', async ()=>{
     try{
       logErr("");
@@ -1027,10 +887,8 @@ Double tap/click sul canvas = rebuild cloth`);
     try{
       if(!audio || !audio.isRecRunning()) return;
       const blob = audio.stopRec();
-
       const stamp=new Date().toISOString().replace(/[:.]/g,'-');
       const name=`wirecloth_${state.bpm}bpm_${stamp}.wav`;
-
       armSave(blob, name);
 
       recBtn.classList.remove("active");
@@ -1060,15 +918,12 @@ Double tap/click sul canvas = rebuild cloth`);
       startRecTimer();
 
       const durSec = 16 * (60/state.bpm);
-
       setTimeout(()=>{
         try{
           if(!audio || !audio.isRecRunning()) return;
           const blob = audio.stopRec();
-
           const stamp=new Date().toISOString().replace(/[:.]/g,'-');
           const name=`wirecloth_4bars_${state.bpm}bpm_${stamp}.wav`;
-
           armSave(blob, name);
 
           recBtn.classList.remove("active");
@@ -1079,23 +934,12 @@ Double tap/click sul canvas = rebuild cloth`);
           logErr("REC4 stop: " + e);
         }
       }, Math.max(250, durSec*1000));
-
     }catch(err){
       logErr("REC 4: " + err);
     }
   });
 
-  // ----- drawing
-  function drawBackground(){
-    const a = clamp(1.0 - state.trail, 0.03, 1.0);
-    ctx.fillStyle = `rgba(5,8,5,${a})`;
-    ctx.fillRect(0,0,W,H);
-    ctx.globalAlpha = 0.06;
-    ctx.fillStyle = "#0b1b0f";
-    for(let y=0;y<H;y+=7) ctx.fillRect(0,y,W,1);
-    ctx.globalAlpha = 1;
-  }
-
+  // --- draw
   function getPlayStep(){
     if(audio && audio.isRunning()){
       const t=(performance.now()/1000)*(state.bpm/60)*4;
@@ -1121,11 +965,10 @@ Double tap/click sul canvas = rebuild cloth`);
     }
 
     const cw=band.w/STEPS, ch=band.h/TRACKS;
+    ctx.fillStyle='rgba(120,255,140,0.26)';
     for(let r=0;r<TRACKS;r++){
       for(let s=0;s<STEPS;s++){
-        if(!pattern[r][s]) continue;
-        ctx.fillStyle='rgba(120,255,140,0.26)';
-        ctx.fillRect(band.x+s*cw+2, band.y+r*ch+2, cw-4, ch-4);
+        if(pattern[r][s]) ctx.fillRect(band.x+s*cw+2, band.y+r*ch+2, cw-4, ch-4);
       }
     }
 
@@ -1138,109 +981,70 @@ Double tap/click sul canvas = rebuild cloth`);
   }
 
   function drawCloth(){
-    ctx.save();
-    ctx.shadowColor='rgba(120,255,140,0.55)';
-    ctx.shadowBlur=state.glow>0 ? state.glow*14 : 0;
-
-    for(const l of links){
-      if(!l.active) continue;
-      const ax=l.a.x, ay=l.a.y, bx=l.b.x, by=l.b.y;
-      const d=Math.hypot(bx-ax, by-ay);
-      const t=clamp(d/l.rest,0.7,1.6);
-      const w=clamp((2.2-(t-0.7))*1.10, 0.75, 2.2);
-      ctx.lineWidth=w;
-      ctx.strokeStyle='rgba(120,255,140,0.86)';
-      ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
+    // path unico = molto più veloce
+    ctx.strokeStyle='rgba(120,255,140,0.88)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    for(let i=0;i<links.length;i++){
+      const l=links[i];
+      if(!l.on) continue;
+      ctx.moveTo(l.a.x,l.a.y);
+      ctx.lineTo(l.b.x,l.b.y);
     }
-    ctx.restore();
+    ctx.stroke();
   }
 
-  function drawBits(){
-    if(bits.length===0) return;
-    ctx.save();
-    ctx.shadowColor='rgba(120,255,140,0.45)';
-    ctx.shadowBlur=state.glow*12;
-    for(const b of bits){
-      ctx.globalAlpha=clamp(b.life,0,1)*0.85;
-      ctx.fillStyle='rgba(160,255,190,0.9)';
-      ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fill();
-    }
-    ctx.restore();
-    ctx.globalAlpha=1;
+  function drawBackground(){
+    // fade trail + bg pre-render
+    const a = clamp(1.0 - state.trail, 0.05, 1.0);
+    ctx.globalAlpha = a;
+    ctx.drawImage(bg, 0,0, bg.width, bg.height, 0,0, W, H);
+    ctx.globalAlpha = 1;
   }
 
-  // ----- FAST loop (FPS cap + idle skip)
+  // --- loop
   let lastFrame=0;
-  let idleCounter=0;
-
   function loop(now){
     requestAnimationFrame(loop);
-
     const frameMs = 1000 / Math.max(12, state.fps);
     if(now - lastFrame < frameMs) return;
-
-    const active = pointer.down;
-    if(!active){
-      idleCounter = (idleCounter + 1) % Math.max(1, state.idleSkip);
-      if(idleCounter !== 0) return;
-    }else{
-      idleCounter = 0;
-    }
-
     lastFrame = now;
 
     drawBackground();
 
-    // cicatrici permanenti (non svaniscono col trail)
-    ctx.drawImage(scar, 0,0, canvas.width, canvas.height, 0,0, W, H);
-
     // physics
-    for(const p of points) p.verlet();
+    for(let i=0;i<pts.length;i++) pts[i].step();
 
-    if(pointer.down){
-      if(state.cut||pointer.shift) cutLinks(pointer.x,pointer.y,state.cutRadius);
-      else applyField();
-      paintGroove();
+    const it = state.iter;
+    for(let k=0;k<it;k++){
+      for(let i=0;i<links.length;i++) links[i].sat();
     }
-
-    const iters = active ? state.iter : 2; // idle = 2 (evita "scioglimento")
-    for(let k=0;k<iters;k++){
-      for(const l of links) l.satisfy();
-    }
-
-    updateBits();
 
     drawCloth();
-    drawBits();
     drawGrooveBand(getPlayStep());
 
+    // cursor
     ctx.fillStyle=(state.cut||pointer.shift)?'rgba(255,180,80,0.9)':'rgba(180,255,200,0.9)';
     ctx.beginPath(); ctx.arc(pointer.x,pointer.y,4,0,Math.PI*2); ctx.fill();
   }
 
-  // ----- init
+  // init
   bpmSlider.value=state.bpm;
   swSlider.value=state.swing;
 
   mobileSafeEl.checked=state.mobileSafe;
-  fpsEl.value=state.fps; iterEl.value=state.iter; idleEl.value=state.idleSkip;
-  gridEl.value=state.grid; piecesEl.value=state.piecesMax;
-  glowEl.value=Math.round(state.glow*100);
-  trailEl.value=Math.round(state.trail*100);
-  reactEl.value=state.react;
-  gravEl.value=Math.round(state.grav*100);
-  windEl.value=Math.round(state.wind*100);
+  fpsEl.value=state.fps; iterEl.value=state.iter; gridEl.value=state.grid;
+  anchEl.value=Math.round(state.anchor*1000);
   cutrEl.value=state.cutRadius;
 
   hint.textContent = isIOS
-    ? "iPhone: START AUDIO → REC → STOP → SAVE WAV (Safari consiglia)."
-    : "Desktop: drag = cloth • band = groove • REC → STOP → SAVE WAV • double click/tap = rebuild";
+    ? "iPhone: START AUDIO → REC → STOP → SAVE WAV (Safari consigliato)."
+    : "Desktop: CUT locale veloce • pattern in basso • REC → STOP → SAVE";
 
   setMode(isMobile ? "MODE: MOBILE" : "MODE: DESKTOP");
   syncUI();
 
   resize();
-  clearScar();
   rebuildCloth();
   setState("READY");
 
