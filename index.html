@@ -3,201 +3,93 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>Wire Cloth + Groove — FAST Stable Cut + Pile</title>
+  <title>Wire Cloth + Afro Groove (Hybrid) + Stereo WAV REC</title>
   <style>
-    :root{
-      --bg:#050805; --fg:#b6ffbf; --fg2:#d7ffdd;
-      --panel:rgba(0,0,0,.34); --panel2:rgba(0,0,0,.62);
-      --border:rgba(182,255,191,.22); --shadow:rgba(0,0,0,.35);
-      --danger:rgba(255,120,120,.38);
+    html,body{margin:0;height:100%;background:#050805;overflow:hidden}
+    canvas{
+      display:block;width:100vw;height:100vh;
+      touch-action:none;
+      -webkit-tap-highlight-color: transparent;
     }
-    html,body{margin:0;height:100%;background:var(--bg);overflow:hidden}
-    canvas{display:block;width:100vw;height:100vh;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none}
 
     .hud{
-      position:fixed;left:12px;top:12px;z-index:20;
+      position:fixed;left:12px;top:12px;z-index:10;
       font:12px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;
-      color:var(--fg); background:var(--panel); border:1px solid var(--border);
-      border-radius:14px; padding:10px 12px;
-      max-width:min(820px, calc(100vw - 24px));
-      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-      box-shadow: 0 12px 35px var(--shadow);
+      color:#b6ffbf;opacity:.95;user-select:none;
+      background:rgba(0,0,0,.30);padding:10px 12px;border-radius:12px;
+      border:1px solid rgba(182,255,191,.22);
+      max-width:min(620px, calc(100vw - 24px));
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
     }
-    .titleRow{display:flex;align-items:center;gap:10px;margin-bottom:6px}
-    .title{font-weight:700;color:var(--fg2);letter-spacing:.2px;font-size:13px}
-    .pill{
-      padding:4px 8px;border-radius:999px;
-      border:1px solid rgba(182,255,191,.18);
-      background:rgba(0,0,0,.22);
-      font-size:11px;opacity:.96;white-space:nowrap;
-    }
-    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
-    .sp{flex:1}
+    .hud b{color:#d7ffdd}
+    .row{margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .btn{
       display:inline-flex;align-items:center;justify-content:center;
-      padding:9px 12px;border-radius:12px;
+      padding:8px 12px;border-radius:12px;
       border:1px solid rgba(182,255,191,.25);
-      background:rgba(0,0,0,.22);
-      color:var(--fg2);
-      cursor:pointer;
+      cursor:pointer;background:rgba(0,0,0,.25);
+      color:#d7ffdd;
       min-height:38px;
+      -webkit-tap-highlight-color: transparent;
       user-select:none;
-      -webkit-tap-highlight-color:transparent;
-      white-space:nowrap;
-      transition:transform .06s ease;
     }
-    .btn:active{transform:scale(.98)}
-    .btn.small{padding:7px 10px;min-height:34px;font-size:12px;opacity:.98}
-    .btn.active{background:rgba(120,255,140,.22)}
-    .btn.danger{border-color:var(--danger)}
-    .btn.danger.active{background:rgba(255,120,120,.22)}
-    .btn.ghost{opacity:.88}
-    .btn.icon{width:38px;min-width:38px;padding:0;border-radius:12px;font-size:16px;line-height:1}
-
-    .kv{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-    .kv .k{opacity:.92}
-    .kv .v{color:var(--fg2);font-weight:700}
-
+    .btn.small{padding:7px 10px;border-radius:11px;min-height:34px;font-size:12px;opacity:.95}
+    .btn.active{background:rgba(120,255,140,.25)}
+    .btn.rec{border-color:rgba(255,120,120,.35)}
+    .btn.rec.active{background:rgba(255,120,120,.22)}
+    .sp{flex:1}
     input[type="range"]{
-      width:170px;-webkit-appearance:none;appearance:none;
-      height:6px;border-radius:999px;background:rgba(182,255,191,.25);outline:none;
+      width:170px;
+      -webkit-appearance:none;appearance:none;
+      height:6px;border-radius:999px;
+      background:rgba(182,255,191,.25);
+      outline:none;
     }
     input[type="range"]::-webkit-slider-thumb{
       -webkit-appearance:none;appearance:none;
       width:20px;height:20px;border-radius:50%;
-      background:var(--fg2);border:1px solid rgba(0,0,0,.45);
+      background:#d7ffdd;border:1px solid rgba(0,0,0,.4);
     }
-
-    .hint{margin-top:6px;opacity:.90}
-    .err{margin-top:8px;color:#ffd2d2;white-space:pre-wrap}
-
-    .overlay{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.48);display:none;backdrop-filter: blur(3px);-webkit-backdrop-filter: blur(3px)}
-    .overlay.show{display:block}
-    .panel{
-      position:absolute;left:12px;top:12px;
-      width:min(520px, calc(100vw - 24px));
-      max-height: calc(100vh - 24px);
-      overflow:auto;
-      background:var(--panel2);
-      border:1px solid rgba(182,255,191,.22);
-      border-radius:16px;
-      padding:12px;
-      box-shadow: 0 18px 55px rgba(0,0,0,.55);
-      color:var(--fg2);
-    }
-    .panel h3{margin:0 0 10px 0;font-size:13px;color:var(--fg2);letter-spacing:.2px}
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .item{border:1px solid rgba(182,255,191,.18);background:rgba(0,0,0,.20);border-radius:12px;padding:10px;color:var(--fg2)}
-    .item .lbl{opacity:.98;margin-bottom:8px;color:var(--fg2);font-weight:600}
-    .item .sub{opacity:.86;font-size:11px;margin-top:6px;color:var(--fg)}
-    .item input[type="range"]{width:100%}
-    .tog{display:flex;align-items:center;gap:8px;justify-content:space-between}
-    .tog input{transform:scale(1.1)}
-    .panel .footer{display:flex;gap:8px;align-items:center;margin-top:10px}
-
-    @media (max-width:480px){
+    .mini{opacity:.85}
+    .err{margin-top:6px;color:#ffd2d2;opacity:.95;white-space:pre-wrap}
+    @media (max-width: 480px){
       .hud{left:10px;top:10px;padding:10px 10px;font-size:12px}
       input[type="range"]{width:140px}
-      .btn{padding:9px 10px}
-      .pill{display:none}
+      .row{gap:6px}
+      .btn{padding:8px 10px}
+      .mini{display:none}
     }
   </style>
 </head>
 <body>
-<canvas id="c"></canvas>
+  <canvas id="c"></canvas>
 
-<div class="hud" id="hud">
-  <div class="titleRow">
-    <span class="btn icon" id="menuBtn" title="Menu">☰</span>
-    <div class="title">Wire Cloth + Groove</div>
-    <div class="pill" id="modePill">MODE</div>
-    <div class="sp"></div>
-    <div class="pill" id="statePill">READY</div>
-  </div>
-
-  <div class="row">
-    <span class="btn" id="audioBtn">▶ START AUDIO</span>
-    <span class="btn small" id="cutBtn">CUT: OFF</span>
-    <span class="btn small" id="eraseBtn">ERASE: OFF</span>
-
-    <span class="btn small danger" id="recBtn">● REC</span>
-    <span class="btn small danger" id="stopRecBtn" style="display:none">■ STOP</span>
-
-    <span class="btn small ghost" id="rec4Btn" title="Registra 4 battute e poi abilita SAVE">REC 4 BARS</span>
-    <span class="btn small" id="saveBtn" style="display:none">⬇ SAVE WAV</span>
-  </div>
-
-  <div class="row kv">
-    <span class="k">BPM</span><span class="v" id="bpmOut">110</span>
-    <input id="bpm" type="range" min="90" max="140" step="1" value="110"/>
-    <span class="k">Swing</span><span class="v" id="swOut">0.58</span>
-    <input id="sw" type="range" min="0.50" max="0.64" step="0.01" value="0.58"/>
-  </div>
-
-  <div class="row">
-    <span class="btn small" id="afroBtn">AFRO</span>
-    <span class="btn small" id="clearBtn">CLEAR</span>
-    <span class="btn small" id="resetBtn">RESET</span>
-    <span class="sp"></span>
-    <span class="pill" id="recPill" style="display:none">REC 00:00</span>
-  </div>
-
-  <div class="hint" id="hint"></div>
-  <div class="err" id="err"></div>
-</div>
-
-<div class="overlay" id="overlay">
-  <div class="panel" id="panel">
-    <h3>Menu (FAST)</h3>
-
-    <div class="grid2">
-      <div class="item">
-        <div class="tog">
-          <div class="lbl">Mobile safe</div>
-          <input type="checkbox" id="mobileSafe"/>
-        </div>
-        <div class="sub">Riduce carico (FPS/iter/griglia).</div>
-      </div>
-
-      <div class="item">
-        <div class="lbl">FPS cap</div>
-        <input type="range" id="fps" min="12" max="60" step="1" value="30"/>
-        <div class="sub"><span id="fpsOut">30</span> fps</div>
-      </div>
-
-      <div class="item">
-        <div class="lbl">Physics iter</div>
-        <input type="range" id="iter" min="1" max="6" step="1" value="3"/>
-        <div class="sub"><span id="iterOut">3</span></div>
-      </div>
-
-      <div class="item">
-        <div class="lbl">Grid size</div>
-        <input type="range" id="grid" min="24" max="64" step="1" value="44"/>
-        <div class="sub">più alto = più fitto (più lento)</div>
-      </div>
-
-      <div class="item">
-        <div class="lbl">Anchor (solo supportati)</div>
-        <input type="range" id="anch" min="0" max="60" step="1" value="18"/>
-        <div class="sub">stabilità: i pezzi staccati ORA cadono.</div>
-      </div>
-
-      <div class="item">
-        <div class="lbl">Cut radius</div>
-        <input type="range" id="cutr" min="8" max="40" step="1" value="18"/>
-        <div class="sub"><span id="cutrOut">18</span> px</div>
-      </div>
-    </div>
-
-    <div class="footer">
-      <span class="btn small" id="closeMenuBtn">OK</span>
-      <span class="btn small ghost" id="helpBtn">Help</span>
+  <div class="hud" id="hud">
+    <b>Wire Cloth + Afro Groove (Hybrid)</b><br>
+    Hold & drag = crea vuoti + groove (ovunque) • Band bassa = editor preciso<br>
+    Tap sulla band = toggle cella • Shift = taglia • Doppio tap/click = reset
+    <div class="row">
+      <span class="btn" id="audioBtn">▶ START AUDIO</span>
+      <span class="btn small" id="eraseBtn">ERASE: OFF</span>
+      <span class="btn small rec" id="recBtn">● REC WAV (stereo)</span>
+      <span class="btn small rec" id="stopRecBtn" style="display:none;">■ STOP REC</span>
       <span class="sp"></span>
-      <span class="btn small ghost" id="panicBtn">RESET FAST</span>
+      <span class="btn small" id="afroBtn">AFRO</span>
+      <span class="btn small" id="clearBtn">CLEAR</span>
+      <span class="btn small" id="resetBtn">RESET</span>
     </div>
+
+    <div class="row">
+      BPM <span id="bpmOut">123</span>
+      <input id="bpm" type="range" min="110" max="132" step="1" value="123" />
+      Swing <span id="swOut">0.58</span>
+      <input id="sw" type="range" min="0.50" max="0.64" step="0.01" value="0.58" />
+    </div>
+
+    <div class="mini">iPhone tip: premi prima START AUDIO, poi REC.</div>
+    <div class="err" id="err"></div>
   </div>
-</div>
 
 <script>
 (() => {
@@ -206,579 +98,557 @@
 
   const hud = document.getElementById('hud');
   const errBox = document.getElementById('err');
-  const hint = document.getElementById('hint');
-
-  const menuBtn = document.getElementById('menuBtn');
-  const overlay = document.getElementById('overlay');
-  const panel = document.getElementById('panel');
-  const closeMenuBtn = document.getElementById('closeMenuBtn');
-  const helpBtn = document.getElementById('helpBtn');
-  const panicBtn = document.getElementById('panicBtn');
-
-  const modePill = document.getElementById('modePill');
-  const statePill = document.getElementById('statePill');
 
   const audioBtn = document.getElementById('audioBtn');
-  const cutBtn = document.getElementById('cutBtn');
   const eraseBtn = document.getElementById('eraseBtn');
-
   const recBtn = document.getElementById('recBtn');
   const stopRecBtn = document.getElementById('stopRecBtn');
-  const rec4Btn = document.getElementById('rec4Btn');
-  const saveBtn = document.getElementById('saveBtn');
-  const recPill = document.getElementById('recPill');
+
+  const afroBtn  = document.getElementById('afroBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const resetBtn = document.getElementById('resetBtn');
 
   const bpmSlider = document.getElementById('bpm');
   const bpmOut = document.getElementById('bpmOut');
   const swSlider = document.getElementById('sw');
   const swOut = document.getElementById('swOut');
 
-  const afroBtn = document.getElementById('afroBtn');
-  const clearBtn = document.getElementById('clearBtn');
-  const resetBtn = document.getElementById('resetBtn');
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  const logErr = (m)=>{ errBox.textContent = String(m||""); };
 
-  const mobileSafeEl = document.getElementById('mobileSafe');
-  const fpsEl   = document.getElementById('fps');
-  const iterEl  = document.getElementById('iter');
-  const gridEl  = document.getElementById('grid');
-  const anchEl  = document.getElementById('anch');
-  const cutrEl  = document.getElementById('cutr');
-
-  const fpsOut  = document.getElementById('fpsOut');
-  const iterOut = document.getElementById('iterOut');
-  const cutrOut = document.getElementById('cutrOut');
-
-  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-  function logErr(m){ errBox.textContent = m ? String(m) : ""; }
-  function setState(t){ statePill.textContent = t; }
-  function setMode(t){ modePill.textContent = t; }
-
-  ["pointerdown","pointermove","pointerup","click","touchstart","touchmove","touchend","wheel"].forEach(ev=>{
-    hud.addEventListener(ev, e=>{ e.stopPropagation(); }, {passive:false});
-    panel.addEventListener(ev, e=>{ e.stopPropagation(); }, {passive:false});
+  // Blocca la propagazione: tap su bottoni/slider NON deve disegnare sul canvas (iOS fix)
+  ["pointerdown","pointermove","pointerup","click","touchstart","touchmove","touchend"].forEach(ev=>{
+    hud.addEventListener(ev, (e)=>{ e.stopPropagation(); }, {passive:false});
   });
 
-  const state = {
-    bpm:110, swing:0.58,
-    erase:false, cut:false,
-    mobileSafe:isMobile,
-    fps: isMobile ? 30 : 45,
-    iter: isMobile ? 3 : 4,
-    grid: isMobile ? 40 : 44,
-    anchor: 0.018,   // applicato SOLO ai supportati
-    grav: 0.42,
-    wind: 0.00,
-    trail: 0.78,
-    cutRadius: 18,
-  };
-
-  // --- sizing
+  // ---------- resize ----------
   let W=0,H=0,DPR=1;
-
-  // pre-render scanline BG (zero loop cost)
-  const bg = document.createElement('canvas');
-  const bgc = bg.getContext('2d', {alpha:false});
-  function rebuildBG(){
-    bg.width = canvas.width;
-    bg.height = canvas.height;
-    bgc.setTransform(1,0,0,1,0,0);
-    bgc.fillStyle = '#050805';
-    bgc.fillRect(0,0,bg.width,bg.height);
-
-    bgc.globalAlpha = 0.09;
-    bgc.fillStyle = '#0b1b0f';
-    for(let y=0;y<bg.height;y+=10) bgc.fillRect(0,y,bg.width,1);
-    bgc.globalAlpha = 1;
-  }
-
   function resize(){
-    const d = devicePixelRatio || 1;
-    DPR = Math.max(1, Math.min(state.mobileSafe ? 1.35 : 1.8, d));
+    DPR = Math.max(1, Math.min(2, devicePixelRatio||1));
     W = innerWidth|0; H = innerHeight|0;
-    canvas.width  = (W*DPR)|0;
-    canvas.height = (H*DPR)|0;
-    canvas.style.width = W+'px';
-    canvas.style.height = H+'px';
+    canvas.width = (W*DPR)|0; canvas.height=(H*DPR)|0;
+    canvas.style.width=W+'px'; canvas.style.height=H+'px';
     ctx.setTransform(DPR,0,0,DPR,0,0);
-    rebuildBG();
   }
+  addEventListener('resize', ()=>{ resize(); reset(); });
+  resize();
 
-  // --- groove
-  const STEPS=16, TRACKS=5;
-  const pattern = Array.from({length:TRACKS}, ()=>Array(STEPS).fill(0));
+  // ---------- Groove ----------
+  const STEPS = 16;
+  const TRACKS = 5; // kick, clap, shaker, conga, bass
+  let bpm = 123;
+  let swing = 0.58;
+
+  const pattern = Array.from({length: TRACKS}, ()=> Array(STEPS).fill(0));
+
   function seedAfro(){
     for(let r=0;r<TRACKS;r++) pattern[r].fill(0);
-    [0,3,7,8,11,14].forEach(s => pattern[0][s]=1);
-    [4,12,15].forEach(s => pattern[1][s]=1);
-    [1,2,3,5,6,7,9,10,11,13,14,15].forEach(s=>pattern[2][s]=1);
-    [2,6,10,13].forEach(s => pattern[3][s]=1);
-    [0,7,10,15].forEach(s => pattern[4][s]=1);
+    [0,3,7,8,11,14].forEach(s => pattern[0][s] = 1); // kick
+    [4,12,15].forEach(s => pattern[1][s] = 1);       // clap
+    [1,2,3,5,6,7,9,10,11,13,14,15].forEach(s => pattern[2][s] = 1); // shaker
+    [2,6,10,13].forEach(s => pattern[3][s] = 1);      // conga
+    [0,7,10,15].forEach(s => pattern[4][s] = 1);      // bass
   }
   seedAfro();
+
+  bpmOut.textContent = bpm;
+  swOut.textContent = swing.toFixed(2);
+
+  bpmSlider.addEventListener('input', ()=>{ bpm = +bpmSlider.value; bpmOut.textContent = bpm; });
+  swSlider.addEventListener('input', ()=>{ swing = +swSlider.value; swOut.textContent = swing.toFixed(2); });
+
+  afroBtn.addEventListener('click', ()=> seedAfro());
+  clearBtn.addEventListener('click', ()=> { for(let r=0;r<TRACKS;r++) pattern[r].fill(0); });
+  resetBtn.addEventListener('click', ()=> { seedAfro(); reset(); });
+
+  // Groove band rect (bottom)
   function grooveBandRect(){
     const h = clamp((H*0.22)|0, 120, 220);
     return { x: 16, y: H - h - 16, w: W - 32, h };
   }
 
-  // ===== PILE (mucchietto ultra-light) =====
-  const PILE_BINS = 64;
-  let pile = new Float32Array(PILE_BINS);
-  let pileV = new Float32Array(PILE_BINS);
-  const PILE_MAX = 170;
+  // ---------- Cloth ----------
+  let COLS=50, ROWS=28, SPACING=16;
+  let GRAV=0.42, FRICTION=0.992;
+  let ITER=5, TEAR_DIST=32;
+  let FIELD_R=80, FIELD_STRENGTH=2.8, CUT_RADIUS=18;
 
-  function pileFloorY(){
+  function adapt(){
+    const base = Math.min(W,H);
+    SPACING = clamp((base/40)|0, 10, 22);
+
+    const hudH = Math.ceil(hud.getBoundingClientRect().height);
     const band = grooveBandRect();
-    return band.y - 10; // 10px sopra la groove band
-  }
-  function grooveEnergyAtStep(s){
-    let e = 0;
-    if(pattern[0][s]) e += 1.00;
-    if(pattern[1][s]) e += 0.80;
-    if(pattern[2][s]) e += 0.35;
-    if(pattern[3][s]) e += 0.45;
-    if(pattern[4][s]) e += 0.55;
-    return Math.min(1, e / 2.2);
-  }
-  function updatePile(playStep){
-    const e = grooveEnergyAtStep(playStep);
-    const drive = e * 14;
+    const usableH = Math.max(180, band.y - (hudH + 18));
+    const usableW = W - 24;
 
-    const headBin = (playStep / STEPS * PILE_BINS) | 0;
-    pileV[headBin] -= drive;
+    COLS = clamp(((usableW/SPACING)|0)-2, 26, 74);
+    ROWS = clamp(((usableH/SPACING)|0)-2, 16, 52);
 
-    for(let i=0;i<PILE_BINS;i++){
-      pileV[i] *= 0.86;
-      pile[i] += pileV[i];
-      pileV[i] += (0 - pile[i]) * 0.02;
-
-      if(pile[i] < 0){ pile[i]=0; pileV[i]*=-0.2; }
-      if(pile[i] > PILE_MAX){ pile[i]=PILE_MAX; pileV[i]*=-0.2; }
-    }
-    for(let i=0;i<PILE_BINS-1;i++){
-      const d = (pile[i] - pile[i+1]) * 0.06;
-      pile[i]   -= d;
-      pile[i+1] += d;
-    }
-  }
-  function drawPile(){
-    const fy = pileFloorY();
-    const bw = W / (PILE_BINS-1);
-
-    ctx.save();
-    ctx.shadowColor = 'rgba(120,255,140,0.45)';
-    ctx.shadowBlur = 12;
-
-    ctx.fillStyle = 'rgba(10,30,14,0.28)';
-    ctx.beginPath();
-    ctx.moveTo(0, fy);
-    for(let i=0;i<PILE_BINS;i++){
-      const x = i*bw;
-      const y = fy - pile[i];
-      ctx.lineTo(x, y);
-    }
-    ctx.lineTo(W, fy);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.strokeStyle = 'rgba(120,255,140,0.75)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    for(let i=0;i<PILE_BINS;i++){
-      const x = i*bw;
-      const y = fy - pile[i];
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-    }
-    ctx.stroke();
-
-    ctx.restore();
+    TEAR_DIST = SPACING * 2.2;
+    FIELD_R = SPACING * 5.0;
+    CUT_RADIUS = SPACING * 1.25;
+    FIELD_STRENGTH = clamp(SPACING/6, 1.6, 3.4);
   }
 
-  // --- cloth
-  let COLS=44, ROWS=26, SP=16, TEAR=32;
-  let startX=12, startY=90;
-  const idx=(x,y)=>y*COLS+x;
-
-  class P{
-    constructor(id,x,y,pin){
-      this.id=id;
-      this.x=x; this.y=y; this.px=x; this.py=y;
-      this.ox=x; this.oy=y;
-      this.pin=pin;
-      this.inPile=false;
-    }
-    step(isSupported){
-      if(this.pin) return;
-
-      const vx=(this.x-this.px)*0.992;
-      const vy=(this.y-this.py)*0.992;
+  class Point{
+    constructor(x,y,pinned=false){ this.x=x; this.y=y; this.px=x; this.py=y; this.pinned=pinned; }
+    verlet(){
+      if(this.pinned) return;
+      const vx=(this.x-this.px)*FRICTION;
+      const vy=(this.y-this.py)*FRICTION;
       this.px=this.x; this.py=this.y;
-
-      // anchor SOLO se supportato
-      let ax=0, ay=0;
-      if(isSupported){
-        ax=(this.ox-this.x)*state.anchor;
-        ay=(this.oy-this.y)*state.anchor;
-      }
-
-      this.x += vx + state.wind + ax;
-      this.y += vy + state.grav + ay;
-
-      // pavimento: deposita nel mucchio se NON supportato
-      if(!isSupported && !this.inPile){
-        const fy = pileFloorY();
-        if(this.y >= fy){
-          this.inPile = true;
-          const i = Math.max(0, Math.min(PILE_BINS-1, (this.x / W * PILE_BINS) | 0));
-          pile[i] = Math.min(PILE_MAX, pile[i] + 6 + Math.random()*10);
-
-          // "spegni" il punto: fuori schermo sotto il floor (non pesa più)
-          this.y = fy + 999;
-          this.py = this.y;
-        }
-      }
-
-      // clamp leggero: solo X, non Y (così cade davvero)
-      if(this.x < 0) this.x = 0;
-      if(this.x > W) this.x = W;
+      this.x += vx;
+      this.y += vy + GRAV;
     }
   }
-
-  class L{
-    constructor(a,b,rest){
-      this.a=a; this.b=b; this.r=rest; this.on=true;
-    }
-    sat(){
-      if(!this.on) return;
+  class Link{
+    constructor(a,b,rest){ this.a=a; this.b=b; this.rest=rest; this.active=true; }
+    satisfy(){
+      if(!this.active) return;
       const ax=this.a.x, ay=this.a.y, bx=this.b.x, by=this.b.y;
       const dx=bx-ax, dy=by-ay;
       const d=Math.hypot(dx,dy);
       if(d===0) return;
-      if(d>TEAR){
-        this.on=false;
-        supportDirty = true;
-        return;
-      }
-      const diff=(d-this.r)/d;
+      if(d>TEAR_DIST){ this.active=false; return; }
+      const diff=(d-this.rest)/d;
       const ox=dx*0.5*diff, oy=dy*0.5*diff;
-      if(!this.a.pin){ this.a.x+=ox; this.a.y+=oy; }
-      if(!this.b.pin){ this.b.x-=ox; this.b.y-=oy; }
+      if(!this.a.pinned){ this.a.x+=ox; this.a.y+=oy; }
+      if(!this.b.pinned){ this.b.x-=ox; this.b.y-=oy; }
     }
   }
 
-  let pts=[], links=[];
-  let adj=[];            // link indices per point (per cut veloce)
-  let nbrPts=[];         // neighbors per point (per support BFS)
-  let supported=[];      // bool per point
-  let supportDirty=true; // ricalcola solo quando serve
+  let points=[], links=[];
+  const idx=(x,y)=>y*COLS+x;
 
-  function adaptGrid(){
-    const base = Math.min(W,H);
-    SP = clamp((base/42)|0, 10, 18);
-
+  function build(){
+    points=[]; links=[];
     const hudH = Math.ceil(hud.getBoundingClientRect().height);
-    const band = grooveBandRect();
-    const usableH = Math.max(170, band.y - (hudH + 16));
-    const usableW = W - 24;
+    const startY = hudH + 18;
+    const startX = 12;
 
-    const maxCols = clamp(state.grid, 24, state.mobileSafe ? 46 : 60);
-    COLS = clamp(((usableW/SP)|0)-2, 24, maxCols);
-
-    const targetRows = Math.round(COLS * (usableH/usableW));
-    ROWS = clamp(targetRows, 14, state.mobileSafe ? 30 : 38);
-
-    TEAR = SP * 2.25;
-
-    startX = 12;
-    startY = hudH + 16;
-  }
-
-  function rebuildCloth(){
-    adaptGrid();
-
-    pts=[]; links=[];
-    adj=[]; nbrPts=[];
-
-    const N = COLS*ROWS;
-    adj.length = N; nbrPts.length=N; supported.length=N;
-    for(let i=0;i<N;i++){ adj[i]=[]; nbrPts[i]=[]; supported[i]=false; }
-
-    // points
     for(let y=0;y<ROWS;y++){
       for(let x=0;x<COLS;x++){
-        const px=startX+x*SP;
-        const py=startY+y*SP;
-        const pin = (y===0) && (x%2===0 || x%6===0);
-        pts.push(new P(idx(x,y), px, py, pin));
+        const px=startX+x*SPACING;
+        const py=startY+y*SPACING;
+        const pinned = (y===0) && (x%2===0);
+        points.push(new Point(px,py,pinned));
       }
     }
 
-    const addLink=(ia, ib, rest)=>{
-      const li = links.length;
-      links.push(new L(pts[ia], pts[ib], rest));
-      adj[ia].push(li);
-      adj[ib].push(li);
-      nbrPts[ia].push(ib);
-      nbrPts[ib].push(ia);
-    };
-
-    // structural
     for(let y=0;y<ROWS;y++){
       for(let x=0;x<COLS;x++){
-        const i=idx(x,y);
-        if(x<COLS-1) addLink(i, idx(x+1,y), SP);
-        if(y<ROWS-1) addLink(i, idx(x,y+1), SP);
+        if(x<COLS-1) links.push(new Link(points[idx(x,y)], points[idx(x+1,y)], SPACING));
+        if(y<ROWS-1) links.push(new Link(points[idx(x,y)], points[idx(x,y+1)], SPACING));
       }
     }
-    // diagonale sparsa
-    const diag = Math.hypot(SP,SP);
+    const diag = Math.hypot(SPACING,SPACING);
     for(let y=0;y<ROWS-1;y++){
       for(let x=0;x<COLS-1;x++){
-        if(((x+y)&1)===0) addLink(idx(x,y), idx(x+1,y+1), diag);
+        links.push(new Link(points[idx(x,y)],   points[idx(x+1,y+1)], diag));
+        links.push(new Link(points[idx(x+1,y)], points[idx(x,y+1)],   diag));
       }
     }
-
-    // reset pile
-    pile.fill(0); pileV.fill(0);
-
-    supportDirty = true;
   }
 
-  // --- support compute (BFS dai pin usando SOLO link "on")
-  const q = [];
-  function computeSupported(){
-    const N = pts.length;
-    for(let i=0;i<N;i++) supported[i]=false;
-    q.length=0;
+  function reset(){ adapt(); build(); }
+  reset();
 
-    for(let i=0;i<N;i++){
-      if(pts[i].pin){
-        supported[i]=true;
-        q.push(i);
-      }
-    }
+  // ---------- Pointer + erase ----------
+  const pointer = { x:W/2, y:H/2, down:false, shift:false };
+  let eraseMode = false;
 
-    while(q.length){
-      const a = q.pop();
-      const neigh = nbrPts[a];
-      for(let k=0;k<neigh.length;k++){
-        const b = neigh[k];
-        if(supported[b]) continue;
-
-        // verifica se c'è almeno un link ON tra a e b (rapida: guarda adj[a])
-        let connected=false;
-        const la = adj[a];
-        for(let t=0;t<la.length;t++){
-          const li = la[t];
-          const Lk = links[li];
-          if(!Lk.on) continue;
-          const pa = Lk.a.id, pb = Lk.b.id;
-          if((pa===a && pb===b) || (pa===b && pb===a)){
-            connected=true; break;
-          }
-        }
-        if(!connected) continue;
-
-        supported[b]=true;
-        q.push(b);
-      }
-    }
-
-    supportDirty=false;
-  }
-
-  // --- fast cut: taglio locale basato su coordinate griglia
-  function cutAt(x,y,r){
-    const gx = Math.round((x - startX)/SP);
-    const gy = Math.round((y - startY)/SP);
-    const rad = Math.ceil(r/SP)+2;
-
-    const x0 = clamp(gx-rad, 0, COLS-1);
-    const x1 = clamp(gx+rad, 0, COLS-1);
-    const y0 = clamp(gy-rad, 0, ROWS-1);
-    const y1 = clamp(gy+rad, 0, ROWS-1);
-
-    const rr = r*r;
-    let any=false;
-
-    for(let yy=y0; yy<=y1; yy++){
-      for(let xx=x0; xx<=x1; xx++){
-        const pi = idx(xx,yy);
-        const list = adj[pi];
-        for(let k=0;k<list.length;k++){
-          const li = list[k];
-          const l = links[li];
-          if(!l.on) continue;
-          const ax=l.a.x, ay=l.a.y, bx=l.b.x, by=l.b.y;
-
-          const vx=bx-ax, vy=by-ay;
-          const wx=x-ax, wy=y-ay;
-          const c2=vx*vx+vy*vy;
-          let t=c2===0?0:(wx*vx+wy*vy)/c2;
-          t=clamp(t,0,1);
-          const px=ax+t*vx, py=ay+t*vy;
-          const dx=x-px, dy=y-py;
-          if(dx*dx+dy*dy<=rr){
-            l.on=false;
-            any=true;
-          }
-        }
-      }
-    }
-    if(any) supportDirty=true;
-  }
-
-  // --- pointer + groove paint
-  const pointer={x:0,y:0,down:false,shift:false};
-  let lastX=0,lastY=0,lastT=0,dragAccent=0;
+  eraseBtn.addEventListener('click', ()=>{
+    eraseMode = !eraseMode;
+    eraseBtn.textContent = eraseMode ? "ERASE: ON" : "ERASE: OFF";
+    eraseBtn.classList.toggle("active", eraseMode);
+  });
 
   function setPointer(e){
     const r=canvas.getBoundingClientRect();
-    pointer.x=e.clientX-r.left;
-    pointer.y=e.clientY-r.top;
-  }
-  function updateDragAccent(){
-    const now=performance.now();
-    const dt=Math.max(8, now-lastT);
-    const dx=pointer.x-lastX, dy=pointer.y-lastY;
-    const v=Math.hypot(dx,dy)/dt;
-    dragAccent=clamp(v*1.8,0,1);
-    lastX=pointer.x; lastY=pointer.y; lastT=now;
+    pointer.x = e.clientX - r.left;
+    pointer.y = e.clientY - r.top;
   }
 
+  function cutLinks(x,y,r){
+    const rr=r*r;
+    for(const l of links){
+      if(!l.active) continue;
+      const ax=l.a.x, ay=l.a.y, bx=l.b.x, by=l.b.y;
+      const vx=bx-ax, vy=by-ay;
+      const wx=x-ax, wy=y-ay;
+      const c2=vx*vx+vy*vy;
+      let t = c2===0 ? 0 : (wx*vx+wy*vy)/c2;
+      t = clamp(t,0,1);
+      const px=ax+t*vx, py=ay+t*vy;
+      const dx=x-px, dy=y-py;
+      if(dx*dx+dy*dy<=rr) l.active=false;
+    }
+  }
+
+  // Gesture speed -> accent (0..1)
+  let lastX=0,lastY=0,lastT=0;
+  let dragAccent = 0;
+  function updateDragAccent(){
+    const now = performance.now();
+    const dt = Math.max(8, now - lastT);
+    const dx = pointer.x - lastX, dy = pointer.y - lastY;
+    const v = Math.hypot(dx,dy) / dt;
+    dragAccent = clamp(v * 1.8, 0, 1);
+    lastX = pointer.x; lastY = pointer.y; lastT = now;
+  }
+
+  // Tap toggle in band (preciso)
   function toggleCellAt(x,y){
-    const band=grooveBandRect();
-    if(!(x>=band.x&&x<=band.x+band.w&&y>=band.y&&y<=band.y+band.h)) return false;
-    const col=clamp(Math.floor(((x-band.x)/band.w)*STEPS),0,STEPS-1);
-    const row=clamp(Math.floor(((y-band.y)/band.h)*TRACKS),0,TRACKS-1);
-    if(state.erase) pattern[row][col]=0;
-    else pattern[row][col]=pattern[row][col]?0:1;
+    const band = grooveBandRect();
+    const inBand =
+      x >= band.x && x <= band.x + band.w &&
+      y >= band.y && y <= band.y + band.h;
+    if(!inBand) return false;
+
+    const col = clamp(Math.floor(((x - band.x)/band.w) * STEPS), 0, STEPS-1);
+    const row = clamp(Math.floor(((y - band.y)/band.h) * TRACKS), 0, TRACKS-1);
+
+    if(eraseMode){
+      pattern[row][col] = 0;
+    }else{
+      pattern[row][col] = pattern[row][col] ? 0 : 1; // toggle
+    }
     return true;
   }
-  function paintGroove(){
-    const band=grooveBandRect();
-    const inBand = pointer.x>=band.x&&pointer.x<=band.x+band.w&&pointer.y>=band.y&&pointer.y<=band.y+band.h;
-    if(!inBand) return;
-    const col=clamp(Math.floor(((pointer.x-band.x)/band.w)*STEPS),0,STEPS-1);
-    const row=clamp(Math.floor(((pointer.y-band.y)/band.h)*TRACKS),0,TRACKS-1);
-    pattern[row][col]=state.erase?0:1;
+
+  // HYBRID paint
+  function paintGrooveFromPointer(){
+    if(!pointer.down || pointer.shift) return;
+
+    const band = grooveBandRect();
+    const inBand =
+      pointer.x >= band.x && pointer.x <= band.x + band.w &&
+      pointer.y >= band.y && pointer.y <= band.y + band.h;
+
+    if(inBand){
+      const col = clamp(Math.floor(((pointer.x - band.x)/band.w) * STEPS), 0, STEPS-1);
+      const row = clamp(Math.floor(((pointer.y - band.y)/band.h) * TRACKS), 0, TRACKS-1);
+      pattern[row][col] = eraseMode ? 0 : 1;
+      return;
+    }
+
+    // fuori banda: pennello "grosso"
+    const col = clamp(Math.floor((pointer.x / W) * STEPS), 0, STEPS-1);
+    const baseRow = clamp(Math.floor((pointer.y / H) * TRACKS), 0, TRACKS-1);
+
+    const stepBrush = 1 + Math.floor(dragAccent * 2); // 1..3
+    const trackSpread = dragAccent > 0.55 ? 1 : 0;   // 0..1
+
+    for(let dc = -stepBrush; dc <= stepBrush; dc++){
+      const s = (col + dc + STEPS) % STEPS;
+      const edge = Math.abs(dc) / (stepBrush || 1);
+      const prob = 1 - (0.55 * edge);
+      if(Math.random() > prob) continue;
+
+      for(let dr = -trackSpread; dr <= trackSpread; dr++){
+        const r = clamp(baseRow + dr, 0, TRACKS-1);
+
+        let bias = 1.0;
+        if(r === 0) bias = 0.55; // kick
+        if(r === 1) bias = 0.65; // clap
+        if(r === 2) bias = 1.00; // shaker
+        if(r === 3) bias = 0.95; // conga
+        if(r === 4) bias = 0.75; // bass
+        if(Math.random() > bias) continue;
+
+        pattern[r][s] = eraseMode ? 0 : 1;
+      }
+    }
   }
 
+  // Pointer events (primary)
   canvas.addEventListener('pointerdown', (e)=>{
     setPointer(e);
-    pointer.down=true;
-    pointer.shift=!!e.shiftKey;
-    lastX=pointer.x; lastY=pointer.y; lastT=performance.now(); dragAccent=0;
+    pointer.down = true;
+    pointer.shift = !!e.shiftKey;
 
-    toggleCellAt(pointer.x,pointer.y);
+    lastX = pointer.x; lastY = pointer.y; lastT = performance.now();
+    dragAccent = 0;
 
-    if(state.cut || pointer.shift) cutAt(pointer.x,pointer.y,state.cutRadius);
+    // tap sulla band = toggle immediato (senza dover trascinare)
+    toggleCellAt(pointer.x, pointer.y);
 
+    if(pointer.shift) cutLinks(pointer.x, pointer.y, CUT_RADIUS);
     try{ canvas.setPointerCapture(e.pointerId); }catch{}
   }, {passive:true});
 
   canvas.addEventListener('pointermove', (e)=>{
     setPointer(e);
-    pointer.shift=!!e.shiftKey;
+    pointer.shift = !!e.shiftKey;
     if(pointer.down) updateDragAccent();
-
-    if(pointer.down){
-      if(state.cut || pointer.shift) cutAt(pointer.x,pointer.y,state.cutRadius);
-      else paintGroove();
-    }
+    if(pointer.down && pointer.shift) cutLinks(pointer.x, pointer.y, CUT_RADIUS);
   }, {passive:true});
 
   canvas.addEventListener('pointerup', (e)=>{
-    pointer.down=false;
-    dragAccent*=0.5;
+    pointer.down = false;
+    dragAccent *= 0.5;
     try{ canvas.releasePointerCapture(e.pointerId); }catch{}
   }, {passive:true});
 
-  // double tap/click rebuild
+  // Fallback: touch events for old browsers/webviews without PointerEvent
+  if (!("PointerEvent" in window)) {
+    const getTouch = (e)=>e.touches && e.touches[0] ? e.touches[0] : null;
+
+    canvas.addEventListener("touchstart", (e)=>{
+      const t=getTouch(e); if(!t) return;
+      e.preventDefault();
+      setPointer(t);
+      pointer.down=true;
+      lastX=pointer.x; lastY=pointer.y; lastT=performance.now();
+      toggleCellAt(pointer.x,pointer.y);
+    }, {passive:false});
+
+    canvas.addEventListener("touchmove", (e)=>{
+      const t=getTouch(e); if(!t) return;
+      e.preventDefault();
+      setPointer(t);
+      updateDragAccent();
+    }, {passive:false});
+
+    canvas.addEventListener("touchend", (e)=>{
+      e.preventDefault();
+      pointer.down=false;
+      dragAccent*=0.5;
+    }, {passive:false});
+  }
+
+  // Double tap/click = reset (pattern afro + cloth)
   let lastTap=0;
   canvas.addEventListener('pointerup', ()=>{
     const now=performance.now();
-    if(now-lastTap<320) rebuildCloth();
+    if(now-lastTap<320){
+      seedAfro();
+      reset();
+    }
     lastTap=now;
   }, {passive:true});
 
-  // ---- Audio + Recorder (identico al tuo)
-  let audio=null, lastBlob=null, lastName=null;
+  // ---------- Web Audio + Stereo WAV REC ----------
+  let audio = null;
 
   function createAudio(){
-    const AC=window.AudioContext||window.webkitAudioContext;
-    if(!AC) throw new Error("AudioContext non supportato.");
-    const ac=new AC({latencyHint:"interactive"});
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) throw new Error("AudioContext non supportato dal browser.");
 
-    const master=ac.createGain();
-    master.gain.value=0.42;
-    master.connect(ac.destination);
+    const ac = new AC({ latencyHint: "interactive" });
 
-    const noiseBuf=ac.createBuffer(1, ac.sampleRate*1.0, ac.sampleRate);
-    const data=noiseBuf.getChannelData(0);
-    for(let i=0;i<data.length;i++) data[i]=Math.random()*2-1;
+    // MASTER stereo
+    const master = ac.createGain();
+    master.gain.value = 0.42;
 
-    const pan=(p)=>{ const pn=ac.createStereoPanner(); pn.pan.value=p; return pn; };
-    function envGain(t,a,d,peak){
-      const g=ac.createGain();
-      g.gain.setValueAtTime(0.0001,t);
-      g.gain.exponentialRampToValueAtTime(peak,t+a);
-      g.gain.exponentialRampToValueAtTime(0.0001,t+a+d);
+    // (optional) tiny stereo widen so it's not pure dual-mono
+    const widener = ac.createStereoPanner();
+    widener.pan.value = 0;
+    master.connect(widener);
+    widener.connect(ac.destination);
+
+    // Noise buffer
+    const noiseBuf = ac.createBuffer(1, ac.sampleRate * 1.0, ac.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    for(let i=0;i<data.length;i++) data[i] = (Math.random()*2-1);
+
+    function envGain(t, a, d, peak){
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(peak, t + a);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + a + d);
       return g;
     }
 
+    // small helpers to place slight stereo positions (keeps stereo meaningful)
+    function panNode(p){
+      const pn = ac.createStereoPanner();
+      pn.pan.value = p;
+      return pn;
+    }
+
     function kick(t){
-      const o=ac.createOscillator(); o.type="sine";
-      const g=envGain(t,0.003,0.20,1.0);
-      o.frequency.setValueAtTime(120,t);
-      o.frequency.exponentialRampToValueAtTime(48,t+0.20);
-      o.connect(g).connect(pan(-0.05)).connect(master);
+      const o = ac.createOscillator();
+      o.type = "sine";
+      const g = envGain(t, 0.003, 0.20, 1.0);
+      o.frequency.setValueAtTime(120, t);
+      o.frequency.exponentialRampToValueAtTime(48, t+0.20);
+      const pn = panNode(-0.05);
+      o.connect(g).connect(pn).connect(master);
       o.start(t); o.stop(t+0.28);
     }
+
     function clap(t){
-      const src=ac.createBufferSource(); src.buffer=noiseBuf;
-      const bp=ac.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=2400; bp.Q.value=0.9;
-      const g=envGain(t,0.002,0.11,0.65);
-      src.connect(bp).connect(g).connect(pan(0.15)).connect(master);
-      src.start(t); src.stop(t+0.14);
+      const src = ac.createBufferSource();
+      src.buffer = noiseBuf;
+      const bp = ac.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 2400;
+      bp.Q.value = 0.9;
+      const g = envGain(t, 0.002, 0.11, 0.65);
+      const pn = panNode(0.15);
+      src.connect(bp).connect(g).connect(pn).connect(master);
+      src.start(t); src.stop(t + 0.14);
     }
-    function shaker(t,accent=1){
-      const src=ac.createBufferSource(); src.buffer=noiseBuf;
-      const hp=ac.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=7200; hp.Q.value=0.8;
-      const g=envGain(t,0.001,0.035,0.18*accent);
-      src.connect(hp).connect(g).connect(pan(-0.25)).connect(master);
+
+    function shaker(t, accent=1){
+      const src = ac.createBufferSource();
+      src.buffer = noiseBuf;
+      const hp = ac.createBiquadFilter();
+      hp.type="highpass";
+      hp.frequency.value = 7200;
+      hp.Q.value = 0.8;
+      const g = envGain(t, 0.001, 0.035, 0.18 * accent);
+      const pn = panNode(-0.25);
+      src.connect(hp).connect(g).connect(pn).connect(master);
       src.start(t); src.stop(t+0.06);
     }
-    function conga(t,accent=1){
-      const o=ac.createOscillator(); o.type="sine";
-      const g=envGain(t,0.002,0.12,0.30*accent);
-      o.frequency.setValueAtTime(200,t);
-      o.frequency.exponentialRampToValueAtTime(125,t+0.10);
-      o.connect(g).connect(pan(0.28)).connect(master);
+
+    function conga(t, accent=1){
+      const o = ac.createOscillator();
+      o.type = "sine";
+      const g = envGain(t, 0.002, 0.12, 0.30 * accent);
+      o.frequency.setValueAtTime(200, t);
+      o.frequency.exponentialRampToValueAtTime(125, t + 0.10);
+      const pn = panNode(0.28);
+      o.connect(g).connect(pn).connect(master);
       o.start(t); o.stop(t+0.18);
     }
-    function bass(t,step){
-      const o=ac.createOscillator(); o.type="triangle";
-      const g=envGain(t,0.003,0.26,0.30);
-      const notes=[55,55,65.4,73.4,65.4,55,49,55];
-      o.frequency.setValueAtTime(notes[step%notes.length],t);
-      const lp=ac.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=180; lp.Q.value=0.8;
-      o.connect(lp).connect(g).connect(pan(0.02)).connect(master);
+
+    function bass(t, step){
+      const o = ac.createOscillator();
+      o.type = "triangle";
+      const g = envGain(t, 0.003, 0.26, 0.30);
+
+      const notes = [55, 55, 65.4, 73.4, 65.4, 55, 49, 55];
+      o.frequency.setValueAtTime(notes[step % notes.length], t);
+
+      const lp = ac.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 180;
+      lp.Q.value = 0.8;
+
+      const pn = panNode(0.02);
+      o.connect(lp).connect(g).connect(pn).connect(master);
       o.start(t); o.stop(t+0.32);
     }
 
-    let step=0, nextTime=0, timer=null;
-    const lookahead=0.10, interval=25;
+    // ---------- Stereo WAV Recorder tap (ScriptProcessor) ----------
+    const rec = {
+      node: null,
+      bufsL: [],
+      bufsR: [],
+      isRec: false,
+      sampleRate: ac.sampleRate
+    };
+
+    // 2-in/2-out so we can capture stereo
+    rec.node = ac.createScriptProcessor(4096, 2, 2);
+    rec.node.onaudioprocess = (e) => {
+      if(!rec.isRec) return;
+
+      // If input is mono, many browsers upmix to both channels automatically.
+      // If not, we safely duplicate L into R.
+      const in0 = e.inputBuffer.getChannelData(0);
+      const has1 = e.inputBuffer.numberOfChannels > 1;
+      const in1 = has1 ? e.inputBuffer.getChannelData(1) : in0;
+
+      rec.bufsL.push(new Float32Array(in0));
+      rec.bufsR.push(new Float32Array(in1));
+    };
+
+    // Must be connected to run; use silent sink
+    const recSink = ac.createGain();
+    recSink.gain.value = 0.0;
+
+    // Tap AFTER master (so it records the whole mix)
+    master.connect(rec.node);
+    rec.node.connect(recSink);
+    recSink.connect(ac.destination);
+
+    function encodeWAVStereo(bufsL, bufsR, sampleRate){
+      let length = 0;
+      for (const b of bufsL) length += b.length;
+
+      const interleaved = new Int16Array(length * 2);
+      let o = 0;
+
+      for (let i=0;i<bufsL.length;i++){
+        const L = bufsL[i];
+        const R = bufsR[i] || L;
+        for (let n=0;n<L.length;n++){
+          let sL = Math.max(-1, Math.min(1, L[n]));
+          let sR = Math.max(-1, Math.min(1, R[n]));
+          interleaved[o++] = (sL < 0 ? sL * 0x8000 : sL * 0x7FFF) | 0;
+          interleaved[o++] = (sR < 0 ? sR * 0x8000 : sR * 0x7FFF) | 0;
+        }
+      }
+
+      const wavBuffer = new ArrayBuffer(44 + interleaved.length * 2);
+      const view = new DataView(wavBuffer);
+      const writeStr = (p, s)=>{ for(let i=0;i<s.length;i++) view.setUint8(p+i, s.charCodeAt(i)); };
+
+      const numCh = 2;
+      const bits = 16;
+      const blockAlign = numCh * (bits/8);
+      const byteRate = sampleRate * blockAlign;
+
+      writeStr(0, "RIFF");
+      view.setUint32(4, 36 + interleaved.length * 2, true);
+      writeStr(8, "WAVE");
+
+      writeStr(12, "fmt ");
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, numCh, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, byteRate, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, bits, true);
+
+      writeStr(36, "data");
+      view.setUint32(40, interleaved.length * 2, true);
+
+      let p = 44;
+      for(let i=0;i<interleaved.length;i++, p+=2){
+        view.setInt16(p, interleaved[i], true);
+      }
+
+      return new Blob([view], { type:"audio/wav" });
+    }
+
+    function startRec(){
+      rec.bufsL.length = 0;
+      rec.bufsR.length = 0;
+      rec.isRec = true;
+    }
+
+    function stopRec(){
+      rec.isRec = false;
+      const blob = encodeWAVStereo(rec.bufsL, rec.bufsR, rec.sampleRate);
+      rec.bufsL.length = 0;
+      rec.bufsR.length = 0;
+      return blob;
+    }
+
+    function isRecRunning(){ return rec.isRec; }
+
+    // ---------- Scheduler ----------
+    let step = 0;
+    let nextTime = 0;
+    const lookahead = 0.10;
+    const interval = 25;
+    let timer = null;
 
     function schedule(){
-      const spb=60/state.bpm;
-      const baseStep=spb/4;
+      const spb = 60 / bpm;
+      const baseStep = spb / 4; // 16th
+
       while(nextTime < ac.currentTime + lookahead){
-        const isOff=(step%2)===1;
-        const swingOffset=isOff ? (baseStep*(state.swing-0.5)) : 0;
-        const t=nextTime+swingOffset;
+        const isOff = (step % 2) === 1;
+        const swingOffset = isOff ? (baseStep * (swing - 0.5)) : 0;
+        const t = nextTime + swingOffset;
 
         if(pattern[0][step]) kick(t);
         if(pattern[1][step]) clap(t);
@@ -786,426 +656,206 @@
         if(pattern[3][step]) conga(t, 0.85 + 0.8*dragAccent);
         if(pattern[4][step]) bass(t, step);
 
-        step=(step+1)%STEPS;
+        step = (step + 1) % STEPS;
         nextTime += baseStep;
       }
     }
+
     function start(){
       if(timer) return;
       nextTime = ac.currentTime + 0.05;
       timer = setInterval(schedule, interval);
     }
-    function stop(){ if(timer){ clearInterval(timer); timer=null; } }
-    const isRunning=()=>!!timer;
-
-    const rec={ node:null, bufsL:[], bufsR:[], isRec:false, sampleRate:ac.sampleRate, startPerf:0 };
-    rec.node=ac.createScriptProcessor(4096,2,2);
-    rec.node.onaudioprocess=(e)=>{
-      if(!rec.isRec) return;
-      const in0=e.inputBuffer.getChannelData(0);
-      const in1=(e.inputBuffer.numberOfChannels>1)?e.inputBuffer.getChannelData(1):in0;
-      rec.bufsL.push(new Float32Array(in0));
-      rec.bufsR.push(new Float32Array(in1));
-    };
-    const sink=ac.createGain(); sink.gain.value=0.0;
-    master.connect(rec.node);
-    rec.node.connect(sink);
-    sink.connect(ac.destination);
-
-    function encodeWAVStereo(bufsL, bufsR, sampleRate){
-      let len=0; for(const b of bufsL) len+=b.length;
-      const inter=new Int16Array(len*2);
-      let o=0;
-      for(let i=0;i<bufsL.length;i++){
-        const L=bufsL[i], R=bufsR[i]||L;
-        for(let n=0;n<L.length;n++){
-          let sL=clamp(L[n],-1,1), sR=clamp(R[n],-1,1);
-          inter[o++] = (sL<0 ? sL*0x8000 : sL*0x7FFF)|0;
-          inter[o++] = (sR<0 ? sR*0x8000 : sR*0x7FFF)|0;
-        }
-      }
-      const wav=new ArrayBuffer(44+inter.length*2);
-      const view=new DataView(wav);
-      const ws=(p,s)=>{ for(let i=0;i<s.length;i++) view.setUint8(p+i, s.charCodeAt(i)); };
-      const numCh=2,bits=16,blockAlign=numCh*(bits/8),byteRate=sampleRate*blockAlign;
-
-      ws(0,"RIFF"); view.setUint32(4,36+inter.length*2,true); ws(8,"WAVE");
-      ws(12,"fmt "); view.setUint32(16,16,true); view.setUint16(20,1,true);
-      view.setUint16(22,numCh,true); view.setUint32(24,sampleRate,true);
-      view.setUint32(28,byteRate,true); view.setUint16(32,blockAlign,true); view.setUint16(34,bits,true);
-      ws(36,"data"); view.setUint32(40,inter.length*2,true);
-
-      let p=44;
-      for(let i=0;i<inter.length;i++,p+=2) view.setInt16(p, inter[i], true);
-      return new Blob([view], {type:"audio/wav"});
+    function stop(){
+      if(timer){ clearInterval(timer); timer=null; }
     }
 
-    function startRec(){ rec.bufsL.length=0; rec.bufsR.length=0; rec.isRec=true; rec.startPerf=performance.now(); }
-    function stopRec(){
-      rec.isRec=false;
-      const blob=encodeWAVStereo(rec.bufsL, rec.bufsR, rec.sampleRate);
-      rec.bufsL.length=0; rec.bufsR.length=0;
-      return blob;
-    }
-    const isRecRunning=()=>rec.isRec;
-    const recElapsedMs=()=> rec.isRec ? (performance.now()-rec.startPerf) : 0;
-
-    return { ac, start, stop, isRunning, startRec, stopRec, isRecRunning, recElapsedMs };
+    return { ac, start, stop, isRunning: ()=>!!timer, startRec, stopRec, isRecRunning };
   }
 
-  function downloadBlob(blob, name){
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url; a.download=name;
+  function downloadBlob(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
     document.body.appendChild(a);
-    a.click(); a.remove();
+    a.click();
+    a.remove();
     setTimeout(()=>URL.revokeObjectURL(url), 2000);
   }
 
-  async function ensureAudioRunning(){
-    if(!audio){
-      audio=createAudio();
-      await audio.ac.resume();
-      audio.start();
-      return;
-    }
-    await audio.ac.resume();
-    if(!audio.isRunning()) audio.start();
-  }
-
-  let recRAF=0;
-  function startRecTimer(){
-    recPill.style.display="inline-block";
-    const tick=()=>{
-      if(!audio || !audio.isRecRunning()){
-        recPill.style.display="none";
-        cancelAnimationFrame(recRAF);
-        return;
-      }
-      const ms=audio.recElapsedMs();
-      const s=Math.floor(ms/1000);
-      const mm=String(Math.floor(s/60)).padStart(2,'0');
-      const ss=String(s%60).padStart(2,'0');
-      recPill.textContent=`REC ${mm}:${ss}`;
-      recRAF=requestAnimationFrame(tick);
-    };
-    recRAF=requestAnimationFrame(tick);
-  }
-
-  function armSave(blob, filename){
-    lastBlob = blob;
-    lastName = filename;
-    saveBtn.style.display = "inline-flex";
-    saveBtn.textContent = "⬇ SAVE WAV";
-  }
-
-  saveBtn.addEventListener('click', ()=>{
-    if(!lastBlob) return;
-    downloadBlob(lastBlob, lastName || "wirecloth.wav");
-  });
-
-  // --- UI
-  function syncUI(){
-    bpmOut.textContent=state.bpm;
-    swOut.textContent=state.swing.toFixed(2);
-
-    cutBtn.classList.toggle("active", state.cut);
-    cutBtn.textContent = state.cut ? "CUT: ON" : "CUT: OFF";
-
-    eraseBtn.classList.toggle("active", state.erase);
-    eraseBtn.textContent = state.erase ? "ERASE: ON" : "ERASE: OFF";
-
-    fpsOut.textContent = state.fps|0;
-    iterOut.textContent = state.iter|0;
-    cutrOut.textContent = state.cutRadius|0;
-
-    mobileSafeEl.checked=state.mobileSafe;
-  }
-
-  bpmSlider.addEventListener('input', ()=>{ state.bpm=+bpmSlider.value; bpmOut.textContent=state.bpm; });
-  swSlider.addEventListener('input', ()=>{ state.swing=+swSlider.value; swOut.textContent=state.swing.toFixed(2); });
-
-  audioBtn.addEventListener('click', async ()=>{
+  audioBtn.addEventListener('click', ()=>{
     try{
       logErr("");
       if(!audio){
-        audio=createAudio();
-        await audio.ac.resume();
-        audio.start();
-        audioBtn.textContent="■ STOP AUDIO";
-        setState("PLAYING");
+        audio = createAudio();
+        audio.ac.resume().then(()=>{
+          audio.start();
+          audioBtn.textContent = "■ STOP AUDIO";
+        }).catch(err=>logErr("Audio start error: " + err));
         return;
       }
       if(audio.isRunning()){
         audio.stop();
-        audioBtn.textContent="▶ START AUDIO";
-        setState("PAUSED");
-      }else{
-        await audio.ac.resume();
-        audio.start();
-        audioBtn.textContent="■ STOP AUDIO";
-        setState("PLAYING");
+        audioBtn.textContent = "▶ START AUDIO";
+      } else {
+        audio.ac.resume().then(()=>{
+          audio.start();
+          audioBtn.textContent = "■ STOP AUDIO";
+        }).catch(err=>logErr("Audio resume error: " + err));
       }
-    }catch(err){ logErr("Audio: "+err); }
+    }catch(err){
+      logErr(err);
+    }
   });
 
-  cutBtn.addEventListener('click', ()=>{ state.cut=!state.cut; syncUI(); });
-  eraseBtn.addEventListener('click', ()=>{ state.erase=!state.erase; syncUI(); });
-
-  afroBtn.addEventListener('click', ()=>seedAfro());
-  clearBtn.addEventListener('click', ()=>{ for(let r=0;r<TRACKS;r++) pattern[r].fill(0); });
-  resetBtn.addEventListener('click', ()=>{ seedAfro(); rebuildCloth(); });
-
-  function openMenu(){ overlay.classList.add("show"); }
-  function closeMenu(){ overlay.classList.remove("show"); }
-  menuBtn.addEventListener('click', openMenu);
-  closeMenuBtn.addEventListener('click', closeMenu);
-  overlay.addEventListener('pointerdown', closeMenu, {passive:true});
-
-  helpBtn.addEventListener('click', ()=>{
-    logErr(
-`COME SI USA:
-• START AUDIO (iPhone: necessario) → suona
-• Band in basso: tap/drag = edit pattern
-• ERASE: cancella note
-• CUT: taglia cloth (locale veloce) → i pezzi staccati cadono + mucchio
-REC:
-• START AUDIO → REC → STOP → SAVE WAV
-Double tap/click sul canvas = rebuild`);
-    closeMenu();
-  });
-
-  panicBtn.addEventListener('click', ()=>{
-    state.mobileSafe=isMobile;
-    state.fps = state.mobileSafe ? 30 : 45;
-    state.iter = state.mobileSafe ? 3 : 4;
-    state.grid = state.mobileSafe ? 40 : 44;
-    state.anchor = 0.018;
-    state.cutRadius = 18;
-    state.cut=false; state.erase=false;
-
-    mobileSafeEl.checked=state.mobileSafe;
-    fpsEl.value=state.fps; iterEl.value=state.iter; gridEl.value=state.grid;
-    anchEl.value=18; cutrEl.value=18;
-
-    resize(); rebuildCloth(); syncUI();
-    closeMenu();
-  });
-
-  mobileSafeEl.addEventListener('change', ()=>{
-    state.mobileSafe=!!mobileSafeEl.checked;
-    state.fps = state.mobileSafe ? 30 : 45;
-    state.iter = state.mobileSafe ? 3 : 4;
-    state.grid = state.mobileSafe ? 40 : 44;
-    fpsEl.value=state.fps; iterEl.value=state.iter; gridEl.value=state.grid;
-    resize(); rebuildCloth(); syncUI();
-  });
-
-  fpsEl.addEventListener('input', ()=>{ state.fps=+fpsEl.value; fpsOut.textContent=state.fps; });
-  iterEl.addEventListener('input', ()=>{ state.iter=+iterEl.value; iterOut.textContent=state.iter; });
-  gridEl.addEventListener('input', ()=>{ state.grid=+gridEl.value; rebuildCloth(); });
-  anchEl.addEventListener('input', ()=>{ state.anchor=(+anchEl.value)/1000; });
-  cutrEl.addEventListener('input', ()=>{ state.cutRadius=+cutrEl.value; cutrOut.textContent=state.cutRadius|0; });
-
-  // REC
+  // REC buttons
   recBtn.addEventListener('click', async ()=>{
     try{
       logErr("");
-      saveBtn.style.display="none"; lastBlob=null; lastName=null;
 
-      await ensureAudioRunning();
-      audioBtn.textContent="■ STOP AUDIO";
-      setState("PLAYING");
+      // ensure audio exists + running (iOS gesture requirement)
+      if(!audio){
+        audio = createAudio();
+        await audio.ac.resume();
+        audio.start();
+        audioBtn.textContent = "■ STOP AUDIO";
+      } else {
+        await audio.ac.resume();
+        if(!audio.isRunning()) audio.start();
+        audioBtn.textContent = "■ STOP AUDIO";
+      }
 
       if(audio.isRecRunning()) return;
 
       audio.startRec();
       recBtn.classList.add("active");
-      recBtn.textContent="● REC…";
-      stopRecBtn.style.display="inline-flex";
-      startRecTimer();
+      recBtn.textContent = "● REC… (stereo)";
+      stopRecBtn.style.display = "inline-flex";
     }catch(err){
-      logErr("REC: " + err);
+      logErr("REC error: " + err);
     }
   });
 
   stopRecBtn.addEventListener('click', ()=>{
     try{
       if(!audio || !audio.isRecRunning()) return;
-      const blob = audio.stopRec();
-      const stamp=new Date().toISOString().replace(/[:.]/g,'-');
-      const name=`wirecloth_${state.bpm}bpm_${stamp}.wav`;
-      armSave(blob, name);
+      const wav = audio.stopRec();
+
+      const stamp = new Date().toISOString().replace(/[:.]/g,'-');
+      downloadBlob(wav, `afro-groove-stereo-${stamp}.wav`);
 
       recBtn.classList.remove("active");
-      recBtn.textContent="● REC";
-      stopRecBtn.style.display="none";
-      recPill.style.display="none";
+      recBtn.textContent = "● REC WAV (stereo)";
+      stopRecBtn.style.display = "none";
     }catch(err){
-      logErr("STOP: " + err);
+      logErr("STOP REC error: " + err);
     }
   });
 
-  rec4Btn.addEventListener('click', async ()=>{
-    try{
-      logErr("");
-      saveBtn.style.display="none"; lastBlob=null; lastName=null;
-
-      await ensureAudioRunning();
-      audioBtn.textContent="■ STOP AUDIO";
-      setState("PLAYING");
-
-      if(audio.isRecRunning()) return;
-
-      audio.startRec();
-      recBtn.classList.add("active");
-      recBtn.textContent="● REC 4 BARS…";
-      stopRecBtn.style.display="inline-flex";
-      startRecTimer();
-
-      const durSec = 16 * (60/state.bpm);
-      setTimeout(()=>{
-        try{
-          if(!audio || !audio.isRecRunning()) return;
-          const blob = audio.stopRec();
-          const stamp=new Date().toISOString().replace(/[:.]/g,'-');
-          const name=`wirecloth_4bars_${state.bpm}bpm_${stamp}.wav`;
-          armSave(blob, name);
-
-          recBtn.classList.remove("active");
-          recBtn.textContent="● REC";
-          stopRecBtn.style.display="none";
-          recPill.style.display="none";
-        }catch(e){
-          logErr("REC4 stop: " + e);
-        }
-      }, Math.max(250, durSec*1000));
-    }catch(err){
-      logErr("REC 4: " + err);
+  // ---------- Simulation ----------
+  function applyVoidField(){
+    if(!pointer.down || pointer.shift) return;
+    const cx=pointer.x, cy=pointer.y, R=FIELD_R, R2=R*R;
+    for(const p of points){
+      if(p.pinned) continue;
+      const dx=p.x-cx, dy=p.y-cy;
+      const d2=dx*dx+dy*dy;
+      if(d2>R2) continue;
+      const d=Math.sqrt(d2) || 0.0001;
+      const t=1-(d/R);
+      const s=(t*t)*FIELD_STRENGTH;
+      const nx=dx/d, ny=dy/d;
+      p.x  += nx*s*6; p.y  += ny*s*6;
+      p.px += nx*s*3; p.py += ny*s*3;
     }
-  });
-
-  // --- draw
-  function getPlayStep(){
-    if(audio && audio.isRunning()){
-      const t=(performance.now()/1000)*(state.bpm/60)*4;
-      return (Math.floor(t)%STEPS);
-    }
-    return 0;
   }
 
-  function drawGrooveBand(playStep){
-    const band=grooveBandRect();
-    ctx.fillStyle='rgba(0,0,0,0.30)';
-    ctx.fillRect(band.x,band.y,band.w,band.h);
+  // ---------- Render ----------
+  function drawGrooveBand(){
+    const band = grooveBandRect();
 
-    ctx.strokeStyle='rgba(120,255,140,0.14)';
-    ctx.lineWidth=1;
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(band.x, band.y, band.w, band.h);
+
+    ctx.strokeStyle = 'rgba(120,255,140,0.18)';
+    ctx.lineWidth = 1;
+
     for(let s=0;s<=STEPS;s++){
-      const x=band.x+(s/STEPS)*band.w;
-      ctx.beginPath(); ctx.moveTo(x,band.y); ctx.lineTo(x,band.y+band.h); ctx.stroke();
+      const x = band.x + (s/STEPS)*band.w;
+      ctx.beginPath(); ctx.moveTo(x, band.y); ctx.lineTo(x, band.y+band.h); ctx.stroke();
     }
     for(let r=0;r<=TRACKS;r++){
-      const y=band.y+(r/TRACKS)*band.h;
-      ctx.beginPath(); ctx.moveTo(band.x,y); ctx.lineTo(band.x+band.w,y); ctx.stroke();
+      const y = band.y + (r/TRACKS)*band.h;
+      ctx.beginPath(); ctx.moveTo(band.x, y); ctx.lineTo(band.x+band.w, y); ctx.stroke();
     }
 
-    const cw=band.w/STEPS, ch=band.h/TRACKS;
-    ctx.fillStyle='rgba(120,255,140,0.26)';
     for(let r=0;r<TRACKS;r++){
       for(let s=0;s<STEPS;s++){
-        if(pattern[r][s]) ctx.fillRect(band.x+s*cw+2, band.y+r*ch+2, cw-4, ch-4);
+        if(!pattern[r][s]) continue;
+        const x0 = band.x + (s/STEPS)*band.w;
+        const y0 = band.y + (r/TRACKS)*band.h;
+        const w = band.w/STEPS, h = band.h/TRACKS;
+        ctx.fillStyle = 'rgba(120,255,140,0.28)';
+        ctx.fillRect(x0+2, y0+2, w-4, h-4);
       }
     }
 
+    // playhead
     if(audio && audio.isRunning()){
-      const x=band.x+(playStep/STEPS)*band.w;
-      ctx.strokeStyle='rgba(180,255,200,0.60)';
-      ctx.lineWidth=2;
-      ctx.beginPath(); ctx.moveTo(x,band.y); ctx.lineTo(x,band.y+band.h); ctx.stroke();
+      const t = (performance.now()/1000) * (bpm/60) * 4;
+      const ph = Math.floor(t) % STEPS;
+      const x = band.x + (ph/STEPS)*band.w;
+      ctx.strokeStyle = 'rgba(180,255,200,0.6)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x, band.y); ctx.lineTo(x, band.y+band.h); ctx.stroke();
     }
   }
 
-  function drawCloth(){
-    ctx.strokeStyle='rgba(120,255,140,0.88)';
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    for(let i=0;i<links.length;i++){
-      const l=links[i];
-      if(!l.on) continue;
-      ctx.moveTo(l.a.x,l.a.y);
-      ctx.lineTo(l.b.x,l.b.y);
-    }
-    ctx.stroke();
-  }
+  function frame(){
+    ctx.fillStyle='#050805';
+    ctx.fillRect(0,0,W,H);
 
-  function drawBackground(){
-    const a = clamp(1.0 - state.trail, 0.05, 1.0);
-    ctx.globalAlpha = a;
-    ctx.drawImage(bg, 0,0, bg.width, bg.height, 0,0, W, H);
-    ctx.globalAlpha = 1;
-  }
+    // cloth sim
+    for(const p of points) p.verlet();
+    applyVoidField();
 
-  // --- loop
-  let lastFrame=0;
-  let frame=0;
+    // groove paint
+    paintGrooveFromPointer();
 
-  function loop(now){
-    requestAnimationFrame(loop);
-    const frameMs = 1000 / Math.max(12, state.fps);
-    if(now - lastFrame < frameMs) return;
-    lastFrame = now;
-    frame++;
-
-    // ricalcola support SOLO quando serve (e non ogni frame)
-    if(supportDirty && ((frame & 1)===0)) computeSupported();
-
-    drawBackground();
-
-    // physics
-    for(let i=0;i<pts.length;i++) pts[i].step(supported[i]);
-
-    const it = state.iter;
-    for(let k=0;k<it;k++){
-      for(let i=0;i<links.length;i++) links[i].sat();
+    for(let k=0;k<ITER;k++){
+      for(const l of links) l.satisfy();
+      for(const p of points){
+        if(p.pinned) continue;
+        p.x = clamp(p.x, 2, W-2);
+        p.y = clamp(p.y, 2, H-2);
+      }
     }
 
-    const ps = getPlayStep();
-    updatePile(ps);
+    // draw cloth
+    ctx.lineCap='round';
+    for(const l of links){
+      if(!l.active) continue;
+      const ax=l.a.x, ay=l.a.y, bx=l.b.x, by=l.b.y;
+      const d=Math.hypot(bx-ax, by-ay);
+      const t=clamp(d/l.rest,0.7,1.6);
+      const w=clamp((2.1-(t-0.7))*1.2, 0.75, 2.4);
+      ctx.lineWidth=w;
+      ctx.strokeStyle='rgba(120,255,140,0.85)';
+      ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
+    }
 
-    drawCloth();
-    drawPile();
-    drawGrooveBand(ps);
+    // UI band
+    drawGrooveBand();
 
-    // cursor
-    ctx.fillStyle=(state.cut||pointer.shift)?'rgba(255,180,80,0.9)':'rgba(180,255,200,0.9)';
-    ctx.beginPath(); ctx.arc(pointer.x,pointer.y,4,0,Math.PI*2); ctx.fill();
+    // pointer dot
+    ctx.fillStyle = pointer.shift ? 'rgba(255,180,80,0.9)' : 'rgba(180,255,200,0.9)';
+    ctx.beginPath(); ctx.arc(pointer.x, pointer.y, 4, 0, Math.PI*2); ctx.fill();
+
+    requestAnimationFrame(frame);
   }
+  requestAnimationFrame(frame);
 
-  // init
-  bpmSlider.value=state.bpm;
-  swSlider.value=state.swing;
-
-  mobileSafeEl.checked=state.mobileSafe;
-  fpsEl.value=state.fps; iterEl.value=state.iter; gridEl.value=state.grid;
-  anchEl.value=Math.round(state.anchor*1000);
-  cutrEl.value=state.cutRadius;
-
-  hint.textContent = isIOS
-    ? "iPhone: START AUDIO → REC → STOP → SAVE WAV (Safari consigliato)."
-    : "Desktop: CUT locale veloce • pezzi staccati cadono + mucchio • REC → STOP → SAVE";
-
-  setMode(isMobile ? "MODE: MOBILE" : "MODE: DESKTOP");
-  syncUI();
-
-  resize();
-  rebuildCloth();
-  setState("READY");
-
-  addEventListener('resize', ()=>{ resize(); rebuildCloth(); });
-  addEventListener('orientationchange', ()=>{ setTimeout(()=>{ resize(); rebuildCloth(); },200); });
-
-  requestAnimationFrame(loop);
 })();
 </script>
 </body>
