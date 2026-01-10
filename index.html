@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>Wire Cloth + Groove — FAST Universal</title>
+  <title>Wire Cloth + Groove — FAST Universal (Stable + Scars)</title>
   <style>
     :root{
       --bg:#050805; --fg:#b6ffbf; --fg2:#d7ffdd;
@@ -342,6 +342,21 @@
 
   // ----- canvas sizing
   let W=0,H=0,DPR=1;
+
+  // --- Scar layer (tracce permanenti dei tagli)
+  const scar = document.createElement('canvas');
+  const scarCtx = scar.getContext('2d', { alpha:true });
+
+  function resizeScar(){
+    scar.width  = canvas.width;
+    scar.height = canvas.height;
+    scarCtx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  function clearScar(){
+    scarCtx.setTransform(DPR,0,0,DPR,0,0);
+    scarCtx.clearRect(0,0,W,H);
+  }
+
   function resize(){
     const d = devicePixelRatio || 1;
     DPR = Math.max(1, Math.min(state.mobileSafe ? 1.35 : 2.0, d));
@@ -351,6 +366,7 @@
     canvas.style.width = W+'px';
     canvas.style.height = H+'px';
     ctx.setTransform(DPR,0,0,DPR,0,0);
+    resizeScar();
   }
 
   // ----- groove
@@ -373,7 +389,7 @@
     return { x: 16, y: H - h - 16, w: W - 32, h };
   }
 
-  // ----- cloth (FAST: no diagonals)
+  // ----- cloth (FAST but STABLE)
   let COLS=48, ROWS=28, SPACING=16;
   let TEAR_DIST=32;
 
@@ -396,7 +412,12 @@
       const dx=bx-ax, dy=by-ay;
       const d=Math.hypot(dx,dy);
       if(d===0) return;
-      if(d>TEAR_DIST){ this.active=false; spawnTearBits(ax,ay,bx,by); return; }
+      if(d>TEAR_DIST){
+        this.active=false;
+        addScar(ax,ay,bx,by);
+        spawnTearBits(ax,ay,bx,by);
+        return;
+      }
       const diff=(d-this.rest)/d;
       const ox=dx*0.5*diff, oy=dy*0.5*diff;
       if(!this.a.pinned){ this.a.x+=ox; this.a.y+=oy; }
@@ -405,6 +426,21 @@
   }
   let points=[], links=[];
   const idx=(x,y)=>y*COLS+x;
+
+  function addScar(ax,ay,bx,by){
+    // linea "incisa" che resta (sotto la cloth)
+    scarCtx.save();
+    scarCtx.globalAlpha = 0.32;
+    scarCtx.lineWidth = Math.max(1, SPACING * 0.12);
+    scarCtx.strokeStyle = 'rgba(120,255,140,0.9)';
+    scarCtx.shadowColor = 'rgba(120,255,140,0.35)';
+    scarCtx.shadowBlur  = state.glow * 14;
+    scarCtx.beginPath();
+    scarCtx.moveTo(ax,ay);
+    scarCtx.lineTo(bx,by);
+    scarCtx.stroke();
+    scarCtx.restore();
+  }
 
   function adaptGrid(){
     const base = Math.min(W,H);
@@ -415,11 +451,9 @@
     const usableH = Math.max(180, band.y - (hudH + 16));
     const usableW = W - 24;
 
-    // "grid" acts as max cols target
     const maxCols = clamp(state.grid, 20, state.mobileSafe ? 48 : 60);
     COLS = clamp(((usableW/SPACING)|0)-2, 22, maxCols);
 
-    // keep aspect-ish
     const targetRows = Math.round(COLS * (usableH/usableW));
     ROWS = clamp(targetRows, 14, state.mobileSafe ? 32 : 40);
 
@@ -441,13 +475,33 @@
         points.push(new Point(px,py,pinned));
       }
     }
+
+    // structural
     for(let y=0;y<ROWS;y++){
       for(let x=0;x<COLS;x++){
         if(x<COLS-1) links.push(new Link(points[idx(x,y)], points[idx(x+1,y)], SPACING));
         if(y<ROWS-1) links.push(new Link(points[idx(x,y)], points[idx(x,y+1)], SPACING));
       }
     }
-    // NOTE: diagonals removed for speed
+
+    // shear diagonals (sparse 50%) + bend links (every 2) -> STABILITÀ senza tornare pesante
+    const diag = Math.hypot(SPACING, SPACING);
+
+    for(let y=0;y<ROWS-1;y++){
+      for(let x=0;x<COLS-1;x++){
+        if(((x+y)&1)===0){
+          links.push(new Link(points[idx(x,y)],   points[idx(x+1,y+1)], diag));
+          links.push(new Link(points[idx(x+1,y)], points[idx(x,y+1)],   diag));
+        }
+      }
+    }
+
+    for(let y=0;y<ROWS;y++){
+      for(let x=0;x<COLS;x++){
+        if(x<COLS-2) links.push(new Link(points[idx(x,y)], points[idx(x+2,y)], SPACING*2));
+        if(y<ROWS-2) links.push(new Link(points[idx(x,y)], points[idx(x,y+2)], SPACING*2));
+      }
+    }
   }
 
   // ----- particles
@@ -506,7 +560,11 @@
       t=clamp(t,0,1);
       const px=ax+t*vx, py=ay+t*vy;
       const dx=x-px, dy=y-py;
-      if(dx*dx+dy*dy<=rr){ l.active=false; spawnTearBits(ax,ay,bx,by); }
+      if(dx*dx+dy*dy<=rr){
+        l.active=false;
+        addScar(ax,ay,bx,by);
+        spawnTearBits(ax,ay,bx,by);
+      }
     }
   }
 
@@ -551,13 +609,12 @@
       pattern[row][col]=state.erase?0:1;
       return;
     }
-    // outside band: "fat brush", but lighter than before
     const col=clamp(Math.floor((pointer.x/W)*STEPS),0,STEPS-1);
     const baseRow=clamp(Math.floor((pointer.y/H)*TRACKS),0,TRACKS-1);
     const stepBrush = 1 + Math.floor(dragAccent*1.5); // 1..2
     for(let dc=-stepBrush; dc<=stepBrush; dc++){
       const s=(col+dc+STEPS)%STEPS;
-      if(Math.random() < 0.25) continue; // sparse for speed
+      if(Math.random() < 0.25) continue;
       const r = baseRow;
       pattern[r][s]=state.erase?0:1;
     }
@@ -588,7 +645,7 @@
     try{ canvas.releasePointerCapture(e.pointerId); }catch{}
   }, {passive:true});
 
-  // double tap/click rebuild cloth
+  // double tap/click rebuild cloth (NON cancella scars: è una "ricucitura" veloce)
   let lastTap=0;
   canvas.addEventListener('pointerup', ()=>{
     const now=performance.now();
@@ -596,7 +653,7 @@
     lastTap=now;
   }, {passive:true});
 
-  // ----- Audio + Recorder (Stereo WAV) — keep your working approach
+  // ----- Audio + Recorder (Stereo WAV)
   let audio=null;
   let lastBlob=null;
   let lastName=null;
@@ -863,7 +920,11 @@
 
   afroBtn.addEventListener('click', ()=>seedAfro());
   clearBtn.addEventListener('click', ()=>{ for(let r=0;r<TRACKS;r++) pattern[r].fill(0); });
-  resetBtn.addEventListener('click', ()=>{ seedAfro(); rebuildCloth(); });
+  resetBtn.addEventListener('click', ()=>{
+    seedAfro();
+    clearScar();          // reset "pulito"
+    rebuildCloth();
+  });
 
   // Menu open/close
   function openMenu(){ overlay.classList.add("show"); }
@@ -878,7 +939,7 @@
 • START AUDIO (obbligatorio su iPhone) → suona il groove
 • Band in basso: tap = toggle cella, drag = paint
 • ERASE: cancella note
-• CUT: strappa la cloth
+• CUT: strappa la cloth (le cicatrici restano sotto)
 REC:
 • START AUDIO → REC → STOP → SAVE WAV
 REC 4 BARS:
@@ -899,7 +960,6 @@ Double tap/click sul canvas = rebuild cloth`);
     state.trail=0.75; state.glow=0.35; state.cutRadius=18;
     state.cut=false; state.erase=false;
 
-    // reflect controls
     mobileSafeEl.checked=state.mobileSafe;
     fpsEl.value=state.fps; iterEl.value=state.iter; idleEl.value=state.idleSkip;
     gridEl.value=state.grid; piecesEl.value=state.piecesMax;
@@ -907,6 +967,7 @@ Double tap/click sul canvas = rebuild cloth`);
     reactEl.value=state.react; gravEl.value=Math.round(state.grav*100); windEl.value=Math.round(state.wind*100);
     cutrEl.value=state.cutRadius;
 
+    clearScar();
     resize(); rebuildCloth(); syncUI();
     closeMenu();
   });
@@ -914,7 +975,7 @@ Double tap/click sul canvas = rebuild cloth`);
   // Menu sliders
   mobileSafeEl.addEventListener('change', ()=>{
     state.mobileSafe=!!mobileSafeEl.checked;
-    // auto-tune
+
     state.fps = state.mobileSafe ? 24 : 30;
     state.iter = state.mobileSafe ? 2 : 3;
     state.idleSkip = state.mobileSafe ? 3 : 2;
@@ -998,7 +1059,6 @@ Double tap/click sul canvas = rebuild cloth`);
       stopRecBtn.style.display="inline-flex";
       startRecTimer();
 
-      // 4 bars 4/4 = 16 beats
       const durSec = 16 * (60/state.bpm);
 
       setTimeout(()=>{
@@ -1069,7 +1129,6 @@ Double tap/click sul canvas = rebuild cloth`);
       }
     }
 
-    // playhead
     if(audio && audio.isRunning()){
       const x=band.x+(playStep/STEPS)*band.w;
       ctx.strokeStyle='rgba(180,255,200,0.60)';
@@ -1123,7 +1182,7 @@ Double tap/click sul canvas = rebuild cloth`);
     const active = pointer.down;
     if(!active){
       idleCounter = (idleCounter + 1) % Math.max(1, state.idleSkip);
-      if(idleCounter !== 0) return; // skip frames in idle
+      if(idleCounter !== 0) return;
     }else{
       idleCounter = 0;
     }
@@ -1132,15 +1191,19 @@ Double tap/click sul canvas = rebuild cloth`);
 
     drawBackground();
 
+    // cicatrici permanenti (non svaniscono col trail)
+    ctx.drawImage(scar, 0,0, canvas.width, canvas.height, 0,0, W, H);
+
     // physics
     for(const p of points) p.verlet();
+
     if(pointer.down){
       if(state.cut||pointer.shift) cutLinks(pointer.x,pointer.y,state.cutRadius);
       else applyField();
       paintGroove();
     }
 
-    const iters = active ? state.iter : 1;
+    const iters = active ? state.iter : 2; // idle = 2 (evita "scioglimento")
     for(let k=0;k<iters;k++){
       for(const l of links) l.satisfy();
     }
@@ -1177,6 +1240,7 @@ Double tap/click sul canvas = rebuild cloth`);
   syncUI();
 
   resize();
+  clearScar();
   rebuildCloth();
   setState("READY");
 
