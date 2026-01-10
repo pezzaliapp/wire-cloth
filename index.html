@@ -67,8 +67,7 @@
 
   <div class="hud" id="hud">
     <b>Wire Cloth + Afro Groove (Hybrid)</b><br>
-    Hold & drag = crea vuoti + groove (ovunque) • Band bassa = editor preciso<br>
-    Tap sulla band = toggle cella • Shift = taglia • Doppio tap/click = reset
+
     <div class="row">
       <span class="btn" id="audioBtn">▶ START AUDIO</span>
       <span class="btn small" id="eraseBtn">ERASE: OFF</span>
@@ -81,8 +80,8 @@
     </div>
 
     <div class="row">
-      BPM <span id="bpmOut">123</span>
-      <input id="bpm" type="range" min="110" max="132" step="1" value="123" />
+      BPM <span id="bpmOut">110</span>
+      <input id="bpm" type="range" min="110" max="132" step="1" value="110" />
       Swing <span id="swOut">0.58</span>
       <input id="sw" type="range" min="0.50" max="0.64" step="0.01" value="0.58" />
     </div>
@@ -136,7 +135,7 @@
   // ---------- Groove ----------
   const STEPS = 16;
   const TRACKS = 5; // kick, clap, shaker, conga, bass
-  let bpm = 123;
+  let bpm = 110;          // ✅ default BPM 110
   let swing = 0.58;
 
   const pattern = Array.from({length: TRACKS}, ()=> Array(STEPS).fill(0));
@@ -548,8 +547,6 @@
     rec.node.onaudioprocess = (e) => {
       if(!rec.isRec) return;
 
-      // If input is mono, many browsers upmix to both channels automatically.
-      // If not, we safely duplicate L into R.
       const in0 = e.inputBuffer.getChannelData(0);
       const has1 = e.inputBuffer.numberOfChannels > 1;
       const in1 = has1 ? e.inputBuffer.getChannelData(1) : in0;
