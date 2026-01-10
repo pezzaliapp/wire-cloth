@@ -13,8 +13,8 @@
       --line:rgba(182,255,191,.22);
       --panel:rgba(0,0,0,.30);
       --panel2:rgba(0,0,0,.22);
-      --glow:0.55;
 
+      /* safe areas iOS */
       --sat: env(safe-area-inset-top, 0px);
       --sar: env(safe-area-inset-right, 0px);
       --sab: env(safe-area-inset-bottom, 0px);
@@ -246,37 +246,15 @@
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const logErr=(m)=>{ errBox.textContent = m ? String(m) : ""; };
 
-  // HUD open/close
-  function setCompactByOrientation(){
-    const isLand = matchMedia("(orientation: landscape)").matches;
-    if(isLand){
-      hud.classList.add("compact");
-      hud.classList.remove("open");
-    }else{
-      hud.classList.remove("compact");
-      hud.classList.add("open");
-    }
-  }
-  setCompactByOrientation();
-  addEventListener("orientationchange", ()=>setTimeout(setCompactByOrientation, 50));
-  addEventListener("resize", ()=>setTimeout(setCompactByOrientation, 50));
-
-  menuBtn.addEventListener("click", (e)=>{
-    e.preventDefault(); e.stopPropagation();
-    hud.classList.toggle("open");
-    hud.classList.remove("compact");
-  }, {passive:false});
-
-  ["pointerdown","pointermove","pointerup","click","touchstart","touchmove","touchend"].forEach(ev=>{
-    hud.addEventListener(ev, (e)=>{ e.stopPropagation(); }, {passive:false});
-  });
-
+  // -----------------------------
   // Viewport sizing (iOS visualViewport fix)
+  // -----------------------------
   let W=0,H=0,DPR=1;
+
   function getViewportSize(){
     const vv = window.visualViewport;
-    const w = vv ? Math.round(vv.width)  : innerWidth|0;
-    const h = vv ? Math.round(vv.height) : innerHeight|0;
+    const w = vv ? Math.round(vv.width)  : (innerWidth|0);
+    const h = vv ? Math.round(vv.height) : (innerHeight|0);
     return {w,h};
   }
 
@@ -292,18 +270,70 @@
     ctx.setTransform(DPR,0,0,DPR,0,0);
   }
 
-  if(window.visualViewport){
-    visualViewport.addEventListener("resize", ()=>{ resizeCanvas(); reset(); }, {passive:true});
-    visualViewport.addEventListener("scroll", ()=>{ resizeCanvas(); reset(); }, {passive:true});
+  // detect "phone-ish" (works even before W/H)
+  function isPhone(){
+    const w = W || innerWidth, h = H || innerHeight;
+    return Math.min(w,h) <= 480;
   }
-  addEventListener("resize", ()=>{ resizeCanvas(); reset(); }, {passive:true});
+
+  if(window.visualViewport){
+    visualViewport.addEventListener("resize", ()=>{ resizeCanvas(); reset(); setDefaultHudState(); }, {passive:true});
+    visualViewport.addEventListener("scroll", ()=>{ resizeCanvas(); reset(); setDefaultHudState(); }, {passive:true});
+  }
+  addEventListener("resize", ()=>{ resizeCanvas(); reset(); setDefaultHudState(); }, {passive:true});
   resizeCanvas();
 
+  // -----------------------------
+  // HUD open/close — iPhone starts CLOSED and toggle works (pointer/touch)
+  // -----------------------------
+  function setDefaultHudState(){
+    // iPhone: start closed ALWAYS
+    if(isPhone()){
+      hud.classList.add("compact");
+      hud.classList.remove("open");
+      return;
+    }
+    // desktop/tablet: portrait open, landscape closed
+    const isLand = matchMedia("(orientation: landscape)").matches;
+    if(isLand){
+      hud.classList.add("compact");
+      hud.classList.remove("open");
+    }else{
+      hud.classList.remove("compact");
+      hud.classList.add("open");
+    }
+  }
+  setDefaultHudState();
+  addEventListener("orientationchange", ()=>setTimeout(setDefaultHudState, 80));
+  addEventListener("resize", ()=>setTimeout(setDefaultHudState, 80));
+
+  function toggleHud(e){
+    e.preventDefault();
+    e.stopPropagation();
+    if(hud.classList.contains("open")){
+      hud.classList.remove("open");
+      hud.classList.add("compact");
+    }else{
+      hud.classList.add("open");
+      hud.classList.remove("compact");
+    }
+  }
+  menuBtn.addEventListener("pointerdown", toggleHud, {passive:false});
+  menuBtn.addEventListener("touchstart", toggleHud, {passive:false}); // iOS fallback
+
+  // IMPORTANT: touches on HUD must NEVER reach canvas
+  ["pointerdown","pointermove","pointerup","click","touchstart","touchmove","touchend"].forEach(ev=>{
+    hud.addEventListener(ev, (e)=>{ e.stopPropagation(); }, {passive:false});
+  });
+
+  // -----------------------------
   // Groove
+  // -----------------------------
   const STEPS=16;
   const TRACKS=5;
   let bpm = 115;
   let swing = 0.58;
+
   bpmSlider.value = bpm;
   bpmOut.textContent = bpm;
   swOut.textContent = swing.toFixed(2);
@@ -327,35 +357,57 @@
   clearBtn.addEventListener('click', ()=>{ for(let r=0;r<TRACKS;r++) pattern[r].fill(0); });
   resetBtn.addEventListener('click', ()=>{ seedAfro(); reset(); });
 
+  // -----------------------------
   // Visual controls
+  // -----------------------------
   let mem = 0.65, react=0.55, trail=0.70, glow=0.55;
-  memOut.textContent = Math.round(mem*100);
-  reOut.textContent  = Math.round(react*100);
-  trOut.textContent  = Math.round(trail*100);
-  glOut.textContent  = Math.round(glow*100);
 
   const pct=(x)=>Math.round(x*100);
+  memOut.textContent = pct(mem);
+  reOut.textContent  = pct(react);
+  trOut.textContent  = pct(trail);
+  glOut.textContent  = pct(glow);
+
+  let smear = 0.35;
+  function updateSmear(){ smear = 0.15 + mem*0.55; }
+  updateSmear();
+
   memS.addEventListener("input", ()=>{ mem = (+memS.value)/100; memOut.textContent=pct(mem); updateSmear(); });
   reS.addEventListener("input",  ()=>{ react=(+reS.value)/100; reOut.textContent=pct(react); });
   trS.addEventListener("input",  ()=>{ trail=(+trS.value)/100; trOut.textContent=pct(trail); });
   glS.addEventListener("input",  ()=>{ glow=(+glS.value)/100;  glOut.textContent=pct(glow);  });
 
-  // Groove band rect
+  // -----------------------------
+  // Safe area bottom (px) for band placement
+  // -----------------------------
+  function safeInsetBottomPx(){
+    const v = getComputedStyle(document.documentElement).getPropertyValue("--sab").trim();
+    const n = parseFloat(v || "0");
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  // Groove band rect (iPhone: bigger + raised above safe area)
   function grooveBandRect(){
     const isLand = matchMedia("(orientation: landscape)").matches;
-    const frac = isLand ? 0.40 : 0.34;
-    const hMin = isLand ? 120 : 150;
-    const hMax = isLand ? 200 : 260;
+    const phone = isPhone();
+
+    const frac = phone ? (isLand ? 0.46 : 0.40) : (isLand ? 0.40 : 0.34);
+    const hMin = phone ? (isLand ? 150 : 180) : (isLand ? 120 : 150);
+    const hMax = phone ? (isLand ? 240 : 320) : (isLand ? 200 : 260);
 
     const h = clamp(Math.round(H*frac), hMin, hMax);
     const m = 12;
+    const sab = safeInsetBottomPx();
+
     const x = m;
-    const y = Math.round(H - h - m);
+    const y = Math.round(H - h - m - sab);
     const w = Math.round(W - m*2);
     return {x,y,w,h};
   }
 
+  // -----------------------------
   // Cloth
+  // -----------------------------
   let COLS=50, ROWS=28, SPACING=16;
   let GRAV=0.42, FRICTION=0.992, ITER=5;
   let TEAR_DIST=32, FIELD_R=80, FIELD_STRENGTH=2.8, CUT_RADIUS=18;
@@ -414,7 +466,6 @@
     points=[]; links=[];
     const band = grooveBandRect();
     const hudH = Math.ceil(hud.getBoundingClientRect().height);
-
     const startY = Math.min(hudH + 16, band.y - 16);
     const startX = 12;
 
@@ -446,7 +497,9 @@
   function reset(){ adapt(); build(); }
   reset();
 
+  // -----------------------------
   // Pointer + ERASE + Hybrid paint
+  // -----------------------------
   const pointer = {x:W/2,y:H/2,down:false,shift:false};
   let eraseMode=false;
 
@@ -576,7 +629,9 @@
     maybeDoubleTapReset(e);
   }, {passive:true});
 
+  // -----------------------------
   // Void field
+  // -----------------------------
   function applyVoidField(){
     if(!pointer.down || pointer.shift) return;
     const cx=pointer.x, cy=pointer.y;
@@ -597,7 +652,9 @@
     }
   }
 
+  // -----------------------------
   // Web Audio + Stereo WAV REC
+  // -----------------------------
   let audio=null;
 
   function createAudio(){
@@ -842,28 +899,68 @@
   });
 
   // -----------------------------
-  // Render
+  // Floor above band + beat-driven impulse (fragments stay visible)
   // -----------------------------
-  let smear = 0.35;
-  function updateSmear(){ smear = 0.15 + mem*0.55; }
-  updateSmear();
+  function applyFloor(){
+    const band = grooveBandRect();
+    const floorY = band.y - 6;
+    const bounce = 0.18;
+    for(const p of points){
+      if(p.pinned) continue;
+      if(p.y > floorY){
+        p.y = floorY;
+        const vy = p.y - p.py;
+        p.py = p.y + vy * (-bounce);
+      }
+    }
+  }
 
   function getPlayStep(){
     if(audio && audio.isRunning()){
-      const t = (performance.now()/1000) * (bpm/60) * 4; // 16th
+      const t = (performance.now()/1000) * (bpm/60) * 4;
       return (Math.floor(t) % STEPS);
     }
     return 0;
   }
 
+  let lastStep = -1;
+  function beatImpulseIfNeeded(){
+    if(!(audio && audio.isRunning())) return;
+    const s = getPlayStep();
+    if(s === lastStep) return;
+    lastStep = s;
+
+    const k = pattern[0][s] ? 1.0 : 0.0;
+    const c = pattern[1][s] ? 0.7 : 0.0;
+    const g = pattern[3][s] ? 0.5 : 0.0;
+    const power = k + c + g;
+    if(power <= 0) return;
+
+    const band = grooveBandRect();
+    const floorY = band.y - 6;
+
+    const up = (2.5 + 6.0*power) * (0.75 + glow*0.6);
+    const side = (Math.random()*2-1) * (0.8 + 1.2*power);
+
+    for(const p of points){
+      if(p.pinned) continue;
+      if(p.y < floorY - SPACING*2) continue;
+      p.py = p.y + up;
+      p.px = p.x - side;
+    }
+  }
+
+  // -----------------------------
+  // Draw groove band (more visible grid on iPhone)
+  // -----------------------------
   function drawGrooveBand(){
     const band=grooveBandRect();
 
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.fillRect(band.x, band.y, band.w, band.h);
 
-    ctx.strokeStyle = 'rgba(120,255,140,0.18)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(180,255,200,0.32)';
+    ctx.lineWidth = (DPR > 1 ? 1 : 1.35);
 
     for(let s=0;s<=STEPS;s++){
       const x = band.x + (s/STEPS)*band.w;
@@ -880,7 +977,8 @@
         const x0 = band.x + (s/STEPS)*band.w;
         const y0 = band.y + (r/TRACKS)*band.h;
         const w = band.w/STEPS, h = band.h/TRACKS;
-        const a = [0.28,0.24,0.20,0.22,0.18][r];
+
+        const a = [0.42,0.36,0.30,0.34,0.28][r];
         ctx.fillStyle = `rgba(120,255,140,${a})`;
         ctx.fillRect(x0+2, y0+2, w-4, h-4);
       }
@@ -889,12 +987,12 @@
     if(audio && audio.isRunning()){
       const ph = getPlayStep();
       const x = band.x + (ph/STEPS)*band.w;
-      ctx.strokeStyle = 'rgba(180,255,200,0.55)';
+      ctx.strokeStyle = 'rgba(200,255,215,0.70)';
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(x, band.y); ctx.lineTo(x, band.y+band.h); ctx.stroke();
     }
 
-    ctx.fillStyle = 'rgba(182,255,191,.55)';
+    ctx.fillStyle = 'rgba(182,255,191,.70)';
     ctx.font = '12px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial';
     const labels = ["K","C","S","G","B"];
     for(let r=0;r<TRACKS;r++){
@@ -903,85 +1001,19 @@
     }
   }
 
-  // ✅ “mucchietto che si muove con la musica”:
-  // - floor sopra la band (così non spariscono)
-  // - impulse solo su punti con pochi link attivi (frammenti)
-  const deg = []; // degree cache (riusata)
-  let lastStep = -1;
-
-  function beatImpulseIfNeeded(){
-    if(!(audio && audio.isRunning())) return;
-
-    const s = getPlayStep();
-    if(s === lastStep) return;
-    lastStep = s;
-
-    // calcola degree (solo quando cambia step, quindi leggero)
-    deg.length = points.length;
-    deg.fill(0);
-
-    for(const l of links){
-      if(!l.active) continue;
-      const ai = points.indexOf(l.a);
-      const bi = points.indexOf(l.b);
-      // indexOf sarebbe lento: facciamo una cosa furba:
-      // invece di indexOf, usiamo un id per point. (ma per non riscrivere tutto, patch minimale:)
-      // --> soluzione: saltiamo l'index lookup e usiamo un criterio più semplice:
-      //     "loose = non pinned e y vicino al floor" (funziona bene per mucchietto)
-    }
-
-    // impulso in base a pattern su step corrente
-    const k = pattern[0][s] ? 1.0 : 0.0;  // kick
-    const c = pattern[1][s] ? 0.7 : 0.0;  // clap
-    const g = pattern[3][s] ? 0.5 : 0.0;  // conga
-    const power = (k + c + g);
-
-    if(power <= 0) return;
-
-    const band = grooveBandRect();
-    const floorY = band.y - 6;
-
-    // colpisci solo la “massa” vicino al floor (mucchietto)
-    const up = (2.5 + 6.0*power) * (0.75 + glow*0.6);
-    const side = (Math.random()*2-1) * (0.8 + 1.2*power);
-
-    for(const p of points){
-      if(p.pinned) continue;
-      if(p.y < floorY - SPACING*2) continue; // solo mucchio
-      // dà “velocità” verso l’alto (verlet): py più grande => spinta up
-      p.py = p.y + up;
-      p.px = p.x - side;
-    }
-  }
-
-  function applyFloor(){
-    const band = grooveBandRect();
-    const floorY = band.y - 6; // pavimento invisibile sopra la band
-    const bounce = 0.18;       // piccolo rimbalzo, stabile
-    for(const p of points){
-      if(p.pinned) continue;
-      if(p.y > floorY){
-        p.y = floorY;
-        // riflette velocità (verlet)
-        const vy = p.y - p.py;
-        p.py = p.y + vy * (-bounce);
-      }
-    }
-  }
-
+  // -----------------------------
+  // Render
+  // -----------------------------
   function frame(){
-    // bg with smear
     ctx.fillStyle = `rgba(5,8,5,${1-smear})`;
     ctx.fillRect(0,0,W,H);
 
-    // simulate
     for(const p of points) p.verlet();
     applyVoidField();
     paintHybrid();
 
     for(let k=0;k<ITER;k++){
       for(const l of links) l.satisfy();
-      // ✅ pavimento + bounds
       applyFloor();
       for(const p of points){
         if(p.pinned) continue;
@@ -990,14 +1022,12 @@
       }
     }
 
-    // ✅ BEAT impulse (solo su cambio step)
+    // beat-driven move (keeps fragments visible + dancing on beat)
     beatImpulseIfNeeded();
 
-    // ✅ DRAW ORDER FIX:
-    // band FIRST (dietro) → cloth sopra → pezzi non “spariscono” sotto la band
+    // DRAW ORDER: band first (behind) then cloth on top
     drawGrooveBand();
 
-    // cloth draw
     ctx.lineCap='round';
     for(const l of links){
       if(!l.active) continue;
@@ -1011,7 +1041,6 @@
       ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
     }
 
-    // pointer dot
     ctx.fillStyle = pointer.shift ? 'rgba(255,180,80,0.9)' : 'rgba(180,255,200,0.9)';
     ctx.beginPath(); ctx.arc(pointer.x, pointer.y, 4, 0, Math.PI*2); ctx.fill();
 
