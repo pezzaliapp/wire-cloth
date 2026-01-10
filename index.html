@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>Wire Cloth + Afro Groove (Hybrid) + Stereo WAV REC</title>
+  <title>Wire Cloth + Afro Groove (LIVE) + Fragments On-Beat + Stereo WAV REC</title>
   <style>
     html,body{margin:0;height:100%;background:#050805;overflow:hidden}
     canvas{
@@ -18,7 +18,7 @@
       color:#b6ffbf;opacity:.95;user-select:none;
       background:rgba(0,0,0,.30);padding:10px 12px;border-radius:12px;
       border:1px solid rgba(182,255,191,.22);
-      max-width:min(620px, calc(100vw - 24px));
+      max-width:min(740px, calc(100vw - 24px));
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
     }
@@ -33,7 +33,9 @@
       min-height:38px;
       -webkit-tap-highlight-color: transparent;
       user-select:none;
+      transition:transform .06s ease;
     }
+    .btn:active{transform:scale(.98)}
     .btn.small{padding:7px 10px;border-radius:11px;min-height:34px;font-size:12px;opacity:.95}
     .btn.active{background:rgba(120,255,140,.25)}
     .btn.rec{border-color:rgba(255,120,120,.35)}
@@ -66,13 +68,16 @@
   <canvas id="c"></canvas>
 
   <div class="hud" id="hud">
-    <b>Wire Cloth + Afro Groove (Hybrid)</b><br>
+    <b>Wire Cloth + Afro Groove (LIVE)</b><br>
 
     <div class="row">
       <span class="btn" id="audioBtn">▶ START AUDIO</span>
+      <span class="btn small" id="cutBtn">CUT: OFF</span>
       <span class="btn small" id="eraseBtn">ERASE: OFF</span>
+
       <span class="btn small rec" id="recBtn">● REC WAV (stereo)</span>
       <span class="btn small rec" id="stopRecBtn" style="display:none;">■ STOP REC</span>
+
       <span class="sp"></span>
       <span class="btn small" id="afroBtn">AFRO</span>
       <span class="btn small" id="clearBtn">CLEAR</span>
@@ -81,12 +86,12 @@
 
     <div class="row">
       BPM <span id="bpmOut">110</span>
-      <input id="bpm" type="range" min="110" max="132" step="1" value="110" />
+      <input id="bpm" type="range" min="90" max="140" step="1" value="110" />
       Swing <span id="swOut">0.58</span>
       <input id="sw" type="range" min="0.50" max="0.64" step="0.01" value="0.58" />
     </div>
 
-    <div class="mini">iPhone tip: premi prima START AUDIO, poi REC.</div>
+    <div class="mini">Tip: START AUDIO → (CUT o SHIFT per tagliare) • Band in basso: tap/drag per pattern • REC salva WAV stereo.</div>
     <div class="err" id="err"></div>
   </div>
 
@@ -99,6 +104,7 @@
   const errBox = document.getElementById('err');
 
   const audioBtn = document.getElementById('audioBtn');
+  const cutBtn   = document.getElementById('cutBtn');
   const eraseBtn = document.getElementById('eraseBtn');
   const recBtn = document.getElementById('recBtn');
   const stopRecBtn = document.getElementById('stopRecBtn');
@@ -115,27 +121,29 @@
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const logErr = (m)=>{ errBox.textContent = String(m||""); };
 
-  // Blocca la propagazione: tap su bottoni/slider NON deve disegnare sul canvas (iOS fix)
-  ["pointerdown","pointermove","pointerup","click","touchstart","touchmove","touchend"].forEach(ev=>{
+  // Blocca propagazione: tap su HUD non deve disegnare/tagliare su canvas (iOS fix)
+  ["pointerdown","pointermove","pointerup","click","touchstart","touchmove","touchend","wheel"].forEach(ev=>{
     hud.addEventListener(ev, (e)=>{ e.stopPropagation(); }, {passive:false});
   });
 
   // ---------- resize ----------
   let W=0,H=0,DPR=1;
   function resize(){
-    DPR = Math.max(1, Math.min(2, devicePixelRatio||1));
+    // su iPhone è meglio non salire troppo di DPR
+    const d = devicePixelRatio || 1;
+    DPR = Math.max(1, Math.min(1.8, d));
     W = innerWidth|0; H = innerHeight|0;
     canvas.width = (W*DPR)|0; canvas.height=(H*DPR)|0;
     canvas.style.width=W+'px'; canvas.style.height=H+'px';
     ctx.setTransform(DPR,0,0,DPR,0,0);
   }
-  addEventListener('resize', ()=>{ resize(); reset(); });
+  addEventListener('resize', ()=>{ resize(); resetAll(); });
   resize();
 
   // ---------- Groove ----------
   const STEPS = 16;
   const TRACKS = 5; // kick, clap, shaker, conga, bass
-  let bpm = 110;          // ✅ default BPM 110
+  let bpm = 110;
   let swing = 0.58;
 
   const pattern = Array.from({length: TRACKS}, ()=> Array(STEPS).fill(0));
@@ -158,9 +166,8 @@
 
   afroBtn.addEventListener('click', ()=> seedAfro());
   clearBtn.addEventListener('click', ()=> { for(let r=0;r<TRACKS;r++) pattern[r].fill(0); });
-  resetBtn.addEventListener('click', ()=> { seedAfro(); reset(); });
+  resetBtn.addEventListener('click', ()=> { seedAfro(); resetAll(); });
 
-  // Groove band rect (bottom)
   function grooveBandRect(){
     const h = clamp((H*0.22)|0, 120, 220);
     return { x: 16, y: H - h - 16, w: W - 32, h };
@@ -171,6 +178,11 @@
   let GRAV=0.42, FRICTION=0.992;
   let ITER=5, TEAR_DIST=32;
   let FIELD_R=80, FIELD_STRENGTH=2.8, CUT_RADIUS=18;
+
+  // LIVE FRAGMENTS (mucchietto on-beat)
+  const fragments = [];     // array of fragment objects
+  let fragDirty = true;
+  let lastFragRebuild = 0;
 
   function adapt(){
     const base = Math.min(W,H);
@@ -188,10 +200,23 @@
     FIELD_R = SPACING * 5.0;
     CUT_RADIUS = SPACING * 1.25;
     FIELD_STRENGTH = clamp(SPACING/6, 1.6, 3.4);
+
+    // performance safe
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    ITER = isMobile ? 4 : 5;
   }
 
   class Point{
-    constructor(x,y,pinned=false){ this.x=x; this.y=y; this.px=x; this.py=y; this.pinned=pinned; }
+    constructor(x,y,pinned=false){
+      this.x=x; this.y=y; this.px=x; this.py=y;
+      this.pinned=pinned;
+
+      // fragment id (-1 = cloth)
+      this.frag = -1;
+
+      // per frammenti: offset rigido dalla centroid
+      this.ofx = 0; this.ofy = 0;
+    }
     verlet(){
       if(this.pinned) return;
       const vx=(this.x-this.px)*FRICTION;
@@ -201,15 +226,29 @@
       this.y += vy + GRAV;
     }
   }
+
   class Link{
-    constructor(a,b,rest){ this.a=a; this.b=b; this.rest=rest; this.active=true; }
+    constructor(a,b,rest,ai,bi){
+      this.a=a; this.b=b; this.rest=rest;
+      this.ai=ai; this.bi=bi;
+      this.active=true;
+    }
     satisfy(){
       if(!this.active) return;
+      // se uno dei due punti è in frammento, NON risolviamo constraint (rigido)
+      if(this.a.frag !== -1 || this.b.frag !== -1) return;
+
       const ax=this.a.x, ay=this.a.y, bx=this.b.x, by=this.b.y;
       const dx=bx-ax, dy=by-ay;
       const d=Math.hypot(dx,dy);
       if(d===0) return;
-      if(d>TEAR_DIST){ this.active=false; return; }
+
+      // tearing automatico (come prima)
+      if(d>TEAR_DIST){
+        this.active=false;
+        fragDirty = true;
+        return;
+      }
       const diff=(d-this.rest)/d;
       const ox=dx*0.5*diff, oy=dy*0.5*diff;
       if(!this.a.pinned){ this.a.x+=ox; this.a.y+=oy; }
@@ -217,11 +256,13 @@
     }
   }
 
-  let points=[], links=[];
+  let points=[], links=[], adj=[];
   const idx=(x,y)=>y*COLS+x;
 
   function build(){
-    points=[]; links=[];
+    points=[]; links=[]; adj=[];
+    fragments.length = 0;
+
     const hudH = Math.ceil(hud.getBoundingClientRect().height);
     const startY = hudH + 18;
     const startX = 12;
@@ -235,32 +276,230 @@
       }
     }
 
+    adj = Array.from({length: points.length}, ()=>[]);
+
+    const addLink = (ai,bi,rest)=>{
+      const l = new Link(points[ai], points[bi], rest, ai, bi);
+      const li = links.length;
+      links.push(l);
+      adj[ai].push(li);
+      adj[bi].push(li);
+    };
+
+    // structural
     for(let y=0;y<ROWS;y++){
       for(let x=0;x<COLS;x++){
-        if(x<COLS-1) links.push(new Link(points[idx(x,y)], points[idx(x+1,y)], SPACING));
-        if(y<ROWS-1) links.push(new Link(points[idx(x,y)], points[idx(x,y+1)], SPACING));
+        const i=idx(x,y);
+        if(x<COLS-1) addLink(i, idx(x+1,y), SPACING);
+        if(y<ROWS-1) addLink(i, idx(x,y+1), SPACING);
       }
     }
+    // diagonals (come il tuo che "andava bene")
     const diag = Math.hypot(SPACING,SPACING);
     for(let y=0;y<ROWS-1;y++){
       for(let x=0;x<COLS-1;x++){
-        links.push(new Link(points[idx(x,y)],   points[idx(x+1,y+1)], diag));
-        links.push(new Link(points[idx(x+1,y)], points[idx(x,y+1)],   diag));
+        addLink(idx(x,y),   idx(x+1,y+1), diag);
+        addLink(idx(x+1,y), idx(x,y+1),   diag);
+      }
+    }
+
+    fragDirty = true;
+  }
+
+  function resetAll(){
+    adapt();
+    build();
+  }
+  resetAll();
+
+  // ---------- LIVE FRAGMENTS: identificazione + mucchietto on-beat ----------
+  function rebuildFragments(){
+    // Resetta stati
+    for(const p of points) p.frag = -1;
+    fragments.length = 0;
+
+    // BFS su componenti usando SOLO link attivi
+    const seen = new Uint8Array(points.length);
+    const q = new Int32Array(points.length);
+
+    const band = grooveBandRect();
+    // "mucchietto" target: poco sopra la groove band
+    const pileY = band.y - SPACING*0.6;
+    const pileX = W*0.52;
+
+    let fragId = 0;
+
+    for(let i=0;i<points.length;i++){
+      if(seen[i]) continue;
+
+      // BFS component
+      let qh=0, qt=0;
+      q[qt++] = i;
+      seen[i] = 1;
+
+      let comp = []; comp.push(i);
+      let hasPinned = points[i].pinned;
+
+      while(qh<qt){
+        const u = q[qh++];
+        const list = adj[u];
+        for(let k=0;k<list.length;k++){
+          const li = list[k];
+          const l = links[li];
+          if(!l.active) continue;
+          const v = (l.ai===u) ? l.bi : l.ai;
+          if(seen[v]) continue;
+          seen[v]=1;
+          q[qt++] = v;
+          comp.push(v);
+          if(points[v].pinned) hasPinned = true;
+        }
+      }
+
+      // se NON ha pinned -> è un frammento (ma evita micro-schegge invisibili)
+      if(!hasPinned && comp.length >= 10){
+        // centroid
+        let cx=0, cy=0;
+        for(const pi of comp){ cx += points[pi].x; cy += points[pi].y; }
+        cx/=comp.length; cy/=comp.length;
+
+        // assegna punti al frammento e salva offset rigido
+        for(const pi of comp){
+          const p = points[pi];
+          p.frag = fragId;
+          p.ofx = p.x - cx;
+          p.ofy = p.y - cy;
+          // azzera “velocità” (così non “scatta”)
+          p.px = p.x; p.py = p.y;
+        }
+
+        // crea frammento con fisica leggera (spring) verso mucchietto
+        const wob = Math.random()*Math.PI*2;
+        const spread = clamp(Math.sqrt(comp.length)*0.9, 3, 18);
+        const tx = pileX + (Math.random()*2-1)*SPACING*spread*0.55;
+        const ty = pileY + (Math.random()*2-1)*SPACING*spread*0.15;
+
+        fragments.push({
+          id: fragId,
+          pts: comp,
+          cx, cy,
+          vx: 0, vy: 0,
+          ang: 0,
+          vang: 0,
+          wob,
+          tx, ty,
+          // “peso” in base alla dimensione (grossi = più lenti)
+          mass: clamp(comp.length/30, 0.8, 4.0),
+        });
+
+        fragId++;
+      }
+    }
+
+    fragDirty = false;
+    lastFragRebuild = performance.now();
+  }
+
+  // energia musicale per muovere mucchietto (0..1+)
+  function grooveEnergy(step){
+    // pesi: kick forte, clap medio, shaker leggero, conga medio, bass medio
+    const w = [1.25, 0.95, 0.45, 0.70, 0.60];
+    let e = 0;
+    for(let r=0;r<TRACKS;r++){
+      if(pattern[r][step]) e += w[r];
+    }
+    return e; // tipicamente 0..~3
+  }
+
+  // play step come nel tuo (solo visivo)
+  function getPlayStep(){
+    if(audio && audio.isRunning()){
+      const t = (performance.now()/1000) * (bpm/60) * 4;
+      return (Math.floor(t) % STEPS);
+    }
+    return 0;
+  }
+
+  function updateFragmentsLive(){
+    if(fragments.length===0) return;
+
+    const step = getPlayStep();
+    const e = grooveEnergy(step);
+    // pulse: più energico quando suona
+    const pulse = clamp(e/2.6, 0, 1.2);
+
+    // tempo continuo per wobble
+    const t = (performance.now()/1000) * (bpm/60) * 2*Math.PI;
+
+    // parametri “strumento live”
+    const band = grooveBandRect();
+    const pileY = band.y - SPACING*0.6;
+    const pileX = W*0.52;
+
+    for(const f of fragments){
+      // target si muove leggermente col groove (mucchietto che “respira”)
+      const mx = pileX + Math.sin(t*0.5 + f.wob)*SPACING*0.45*pulse;
+      const my = pileY + Math.cos(t*0.5 + f.wob)*SPACING*0.25*pulse;
+
+      // aggiorna target personale (tende a stare nel mucchietto)
+      f.tx += (mx - f.tx) * 0.02;
+      f.ty += (my - f.ty) * 0.02;
+
+      // spring verso target + damping (leggerissimo)
+      const k = 0.060 / f.mass;
+      const damp = 0.86;
+
+      const ax = (f.tx - f.cx) * k;
+      const ay = (f.ty - f.cy) * k;
+
+      // “colpo” on-beat: micro jitter coerente
+      const j = (pulse>0.01 ? (pulse * 0.22) : 0);
+      const jx = Math.sin(t*2.0 + f.wob) * j;
+      const jy = Math.cos(t*1.8 + f.wob) * j;
+
+      f.vx = (f.vx + ax + jx) * damp;
+      f.vy = (f.vy + ay + jy) * damp;
+
+      f.cx += f.vx;
+      f.cy += f.vy;
+
+      // rotazione “musicale” (molto leggera)
+      const rotK = 0.0025 * pulse;
+      f.vang = (f.vang + (Math.sin(t + f.wob) * rotK)) * 0.88;
+      f.ang += f.vang;
+
+      // limita area (non scappano mai via)
+      f.cx = clamp(f.cx, 10, W-10);
+      f.cy = clamp(f.cy, 10, H-10);
+
+      // applica trasformazione rigida ai punti (così RESTANO visibili)
+      const ca = Math.cos(f.ang), sa = Math.sin(f.ang);
+      for(const pi of f.pts){
+        const p = points[pi];
+        const x = p.ofx, y = p.ofy;
+        p.x = f.cx + (x*ca - y*sa);
+        p.y = f.cy + (x*sa + y*ca);
+        // evita velocità residuali
+        p.px = p.x; p.py = p.y;
       }
     }
   }
 
-  function reset(){ adapt(); build(); }
-  reset();
-
-  // ---------- Pointer + erase ----------
+  // ---------- Pointer + modes ----------
   const pointer = { x:W/2, y:H/2, down:false, shift:false };
   let eraseMode = false;
+  let cutMode = false;
 
   eraseBtn.addEventListener('click', ()=>{
     eraseMode = !eraseMode;
     eraseBtn.textContent = eraseMode ? "ERASE: ON" : "ERASE: OFF";
     eraseBtn.classList.toggle("active", eraseMode);
+  });
+
+  cutBtn.addEventListener('click', ()=>{
+    cutMode = !cutMode;
+    cutBtn.textContent = cutMode ? "CUT: ON" : "CUT: OFF";
+    cutBtn.classList.toggle("active", cutMode);
   });
 
   function setPointer(e){
@@ -269,8 +508,10 @@
     pointer.y = e.clientY - r.top;
   }
 
+  // cut: disattiva link (come il tuo) + marca fragDirty
   function cutLinks(x,y,r){
     const rr=r*r;
+    let any = false;
     for(const l of links){
       if(!l.active) continue;
       const ax=l.a.x, ay=l.a.y, bx=l.b.x, by=l.b.y;
@@ -281,11 +522,15 @@
       t = clamp(t,0,1);
       const px=ax+t*vx, py=ay+t*vy;
       const dx=x-px, dy=y-py;
-      if(dx*dx+dy*dy<=rr) l.active=false;
+      if(dx*dx+dy*dy<=rr){
+        l.active=false;
+        any = true;
+      }
     }
+    if(any) fragDirty = true;
   }
 
-  // Gesture speed -> accent (0..1)
+  // Gesture speed -> accent (0..1) usato per shaker/conga + paint
   let lastX=0,lastY=0,lastT=0;
   let dragAccent = 0;
   function updateDragAccent(){
@@ -311,14 +556,16 @@
     if(eraseMode){
       pattern[row][col] = 0;
     }else{
-      pattern[row][col] = pattern[row][col] ? 0 : 1; // toggle
+      pattern[row][col] = pattern[row][col] ? 0 : 1;
     }
     return true;
   }
 
   // HYBRID paint
   function paintGrooveFromPointer(){
-    if(!pointer.down || pointer.shift) return;
+    if(!pointer.down) return;
+    if(pointer.shift) return; // shift = cut
+    if(cutMode) return;       // cut mode = cut continuo
 
     const band = grooveBandRect();
     const inBand =
@@ -332,12 +579,12 @@
       return;
     }
 
-    // fuori banda: pennello "grosso"
+    // fuori banda: pennello "grosso" (come il tuo)
     const col = clamp(Math.floor((pointer.x / W) * STEPS), 0, STEPS-1);
     const baseRow = clamp(Math.floor((pointer.y / H) * TRACKS), 0, TRACKS-1);
 
     const stepBrush = 1 + Math.floor(dragAccent * 2); // 1..3
-    const trackSpread = dragAccent > 0.55 ? 1 : 0;   // 0..1
+    const trackSpread = dragAccent > 0.55 ? 1 : 0;
 
     for(let dc = -stepBrush; dc <= stepBrush; dc++){
       const s = (col + dc + STEPS) % STEPS;
@@ -361,7 +608,7 @@
     }
   }
 
-  // Pointer events (primary)
+  // Pointer events
   canvas.addEventListener('pointerdown', (e)=>{
     setPointer(e);
     pointer.down = true;
@@ -370,10 +617,12 @@
     lastX = pointer.x; lastY = pointer.y; lastT = performance.now();
     dragAccent = 0;
 
-    // tap sulla band = toggle immediato (senza dover trascinare)
     toggleCellAt(pointer.x, pointer.y);
 
-    if(pointer.shift) cutLinks(pointer.x, pointer.y, CUT_RADIUS);
+    if(pointer.shift || cutMode){
+      cutLinks(pointer.x, pointer.y, CUT_RADIUS);
+    }
+
     try{ canvas.setPointerCapture(e.pointerId); }catch{}
   }, {passive:true});
 
@@ -381,7 +630,12 @@
     setPointer(e);
     pointer.shift = !!e.shiftKey;
     if(pointer.down) updateDragAccent();
-    if(pointer.down && pointer.shift) cutLinks(pointer.x, pointer.y, CUT_RADIUS);
+
+    if(pointer.down){
+      if(pointer.shift || cutMode){
+        cutLinks(pointer.x, pointer.y, CUT_RADIUS);
+      }
+    }
   }, {passive:true});
 
   canvas.addEventListener('pointerup', (e)=>{
@@ -390,7 +644,7 @@
     try{ canvas.releasePointerCapture(e.pointerId); }catch{}
   }, {passive:true});
 
-  // Fallback: touch events for old browsers/webviews without PointerEvent
+  // Touch fallback se manca PointerEvent
   if (!("PointerEvent" in window)) {
     const getTouch = (e)=>e.touches && e.touches[0] ? e.touches[0] : null;
 
@@ -408,6 +662,7 @@
       e.preventDefault();
       setPointer(t);
       updateDragAccent();
+      if(cutMode) cutLinks(pointer.x, pointer.y, CUT_RADIUS);
     }, {passive:false});
 
     canvas.addEventListener("touchend", (e)=>{
@@ -417,13 +672,13 @@
     }, {passive:false});
   }
 
-  // Double tap/click = reset (pattern afro + cloth)
+  // Double tap/click = reset (come tuo)
   let lastTap=0;
   canvas.addEventListener('pointerup', ()=>{
     const now=performance.now();
     if(now-lastTap<320){
       seedAfro();
-      reset();
+      resetAll();
     }
     lastTap=now;
   }, {passive:true});
@@ -437,17 +692,10 @@
 
     const ac = new AC({ latencyHint: "interactive" });
 
-    // MASTER stereo
     const master = ac.createGain();
     master.gain.value = 0.42;
+    master.connect(ac.destination);
 
-    // (optional) tiny stereo widen so it's not pure dual-mono
-    const widener = ac.createStereoPanner();
-    widener.pan.value = 0;
-    master.connect(widener);
-    widener.connect(ac.destination);
-
-    // Noise buffer
     const noiseBuf = ac.createBuffer(1, ac.sampleRate * 1.0, ac.sampleRate);
     const data = noiseBuf.getChannelData(0);
     for(let i=0;i<data.length;i++) data[i] = (Math.random()*2-1);
@@ -460,7 +708,6 @@
       return g;
     }
 
-    // small helpers to place slight stereo positions (keeps stereo meaningful)
     function panNode(p){
       const pn = ac.createStereoPanner();
       pn.pan.value = p;
@@ -473,8 +720,7 @@
       const g = envGain(t, 0.003, 0.20, 1.0);
       o.frequency.setValueAtTime(120, t);
       o.frequency.exponentialRampToValueAtTime(48, t+0.20);
-      const pn = panNode(-0.05);
-      o.connect(g).connect(pn).connect(master);
+      o.connect(g).connect(panNode(-0.05)).connect(master);
       o.start(t); o.stop(t+0.28);
     }
 
@@ -482,12 +728,9 @@
       const src = ac.createBufferSource();
       src.buffer = noiseBuf;
       const bp = ac.createBiquadFilter();
-      bp.type = "bandpass";
-      bp.frequency.value = 2400;
-      bp.Q.value = 0.9;
+      bp.type = "bandpass"; bp.frequency.value = 2400; bp.Q.value = 0.9;
       const g = envGain(t, 0.002, 0.11, 0.65);
-      const pn = panNode(0.15);
-      src.connect(bp).connect(g).connect(pn).connect(master);
+      src.connect(bp).connect(g).connect(panNode(0.15)).connect(master);
       src.start(t); src.stop(t + 0.14);
     }
 
@@ -495,12 +738,9 @@
       const src = ac.createBufferSource();
       src.buffer = noiseBuf;
       const hp = ac.createBiquadFilter();
-      hp.type="highpass";
-      hp.frequency.value = 7200;
-      hp.Q.value = 0.8;
+      hp.type="highpass"; hp.frequency.value = 7200; hp.Q.value = 0.8;
       const g = envGain(t, 0.001, 0.035, 0.18 * accent);
-      const pn = panNode(-0.25);
-      src.connect(hp).connect(g).connect(pn).connect(master);
+      src.connect(hp).connect(g).connect(panNode(-0.25)).connect(master);
       src.start(t); src.stop(t+0.06);
     }
 
@@ -510,8 +750,7 @@
       const g = envGain(t, 0.002, 0.12, 0.30 * accent);
       o.frequency.setValueAtTime(200, t);
       o.frequency.exponentialRampToValueAtTime(125, t + 0.10);
-      const pn = panNode(0.28);
-      o.connect(g).connect(pn).connect(master);
+      o.connect(g).connect(panNode(0.28)).connect(master);
       o.start(t); o.stop(t+0.18);
     }
 
@@ -519,47 +758,27 @@
       const o = ac.createOscillator();
       o.type = "triangle";
       const g = envGain(t, 0.003, 0.26, 0.30);
-
       const notes = [55, 55, 65.4, 73.4, 65.4, 55, 49, 55];
       o.frequency.setValueAtTime(notes[step % notes.length], t);
-
       const lp = ac.createBiquadFilter();
-      lp.type = "lowpass";
-      lp.frequency.value = 180;
-      lp.Q.value = 0.8;
-
-      const pn = panNode(0.02);
-      o.connect(lp).connect(g).connect(pn).connect(master);
+      lp.type = "lowpass"; lp.frequency.value = 180; lp.Q.value = 0.8;
+      o.connect(lp).connect(g).connect(panNode(0.02)).connect(master);
       o.start(t); o.stop(t+0.32);
     }
 
-    // ---------- Stereo WAV Recorder tap (ScriptProcessor) ----------
-    const rec = {
-      node: null,
-      bufsL: [],
-      bufsR: [],
-      isRec: false,
-      sampleRate: ac.sampleRate
-    };
-
-    // 2-in/2-out so we can capture stereo
+    // ---- Recorder (stereo ScriptProcessor)
+    const rec = { node:null, bufsL:[], bufsR:[], isRec:false, sampleRate: ac.sampleRate };
     rec.node = ac.createScriptProcessor(4096, 2, 2);
     rec.node.onaudioprocess = (e) => {
       if(!rec.isRec) return;
-
       const in0 = e.inputBuffer.getChannelData(0);
       const has1 = e.inputBuffer.numberOfChannels > 1;
       const in1 = has1 ? e.inputBuffer.getChannelData(1) : in0;
-
       rec.bufsL.push(new Float32Array(in0));
       rec.bufsR.push(new Float32Array(in1));
     };
-
-    // Must be connected to run; use silent sink
     const recSink = ac.createGain();
     recSink.gain.value = 0.0;
-
-    // Tap AFTER master (so it records the whole mix)
     master.connect(rec.node);
     rec.node.connect(recSink);
     recSink.connect(ac.destination);
@@ -586,8 +805,7 @@
       const view = new DataView(wavBuffer);
       const writeStr = (p, s)=>{ for(let i=0;i<s.length;i++) view.setUint8(p+i, s.charCodeAt(i)); };
 
-      const numCh = 2;
-      const bits = 16;
+      const numCh = 2, bits = 16;
       const blockAlign = numCh * (bits/8);
       const byteRate = sampleRate * blockAlign;
 
@@ -611,7 +829,6 @@
       for(let i=0;i<interleaved.length;i++, p+=2){
         view.setInt16(p, interleaved[i], true);
       }
-
       return new Blob([view], { type:"audio/wav" });
     }
 
@@ -620,7 +837,6 @@
       rec.bufsR.length = 0;
       rec.isRec = true;
     }
-
     function stopRec(){
       rec.isRec = false;
       const blob = encodeWAVStereo(rec.bufsL, rec.bufsR, rec.sampleRate);
@@ -628,10 +844,9 @@
       rec.bufsR.length = 0;
       return blob;
     }
-
     function isRecRunning(){ return rec.isRec; }
 
-    // ---------- Scheduler ----------
+    // ---- Scheduler
     let step = 0;
     let nextTime = 0;
     const lookahead = 0.10;
@@ -641,7 +856,6 @@
     function schedule(){
       const spb = 60 / bpm;
       const baseStep = spb / 4; // 16th
-
       while(nextTime < ac.currentTime + lookahead){
         const isOff = (step % 2) === 1;
         const swingOffset = isOff ? (baseStep * (swing - 0.5)) : 0;
@@ -710,7 +924,6 @@
   recBtn.addEventListener('click', async ()=>{
     try{
       logErr("");
-
       // ensure audio exists + running (iOS gesture requirement)
       if(!audio){
         audio = createAudio();
@@ -738,9 +951,8 @@
     try{
       if(!audio || !audio.isRecRunning()) return;
       const wav = audio.stopRec();
-
       const stamp = new Date().toISOString().replace(/[:.]/g,'-');
-      downloadBlob(wav, `afro-groove-stereo-${stamp}.wav`);
+      downloadBlob(wav, `live-wirecloth-afro-stereo-${stamp}.wav`);
 
       recBtn.classList.remove("active");
       recBtn.textContent = "● REC WAV (stereo)";
@@ -752,10 +964,15 @@
 
   // ---------- Simulation ----------
   function applyVoidField(){
-    if(!pointer.down || pointer.shift) return;
+    // spingi/respira la cloth (non i frammenti)
+    if(!pointer.down) return;
+    if(pointer.shift || cutMode) return;
     const cx=pointer.x, cy=pointer.y, R=FIELD_R, R2=R*R;
+
     for(const p of points){
       if(p.pinned) continue;
+      if(p.frag !== -1) continue;
+
       const dx=p.x-cx, dy=p.y-cy;
       const d2=dx*dx+dy*dy;
       if(d2>R2) continue;
@@ -798,7 +1015,6 @@
       }
     }
 
-    // playhead
     if(audio && audio.isRunning()){
       const t = (performance.now()/1000) * (bpm/60) * 4;
       const ph = Math.floor(t) % STEPS;
@@ -809,28 +1025,13 @@
     }
   }
 
-  function frame(){
-    ctx.fillStyle='#050805';
-    ctx.fillRect(0,0,W,H);
-
-    // cloth sim
-    for(const p of points) p.verlet();
-    applyVoidField();
-
-    // groove paint
-    paintGrooveFromPointer();
-
-    for(let k=0;k<ITER;k++){
-      for(const l of links) l.satisfy();
-      for(const p of points){
-        if(p.pinned) continue;
-        p.x = clamp(p.x, 2, W-2);
-        p.y = clamp(p.y, 2, H-2);
-      }
-    }
-
-    // draw cloth
+  function drawCloth(){
+    // glow leggero senza costare troppo
+    ctx.save();
     ctx.lineCap='round';
+    ctx.shadowColor='rgba(120,255,140,0.55)';
+    ctx.shadowBlur=10;
+
     for(const l of links){
       if(!l.active) continue;
       const ax=l.a.x, ay=l.a.y, bx=l.b.x, by=l.b.y;
@@ -841,12 +1042,55 @@
       ctx.strokeStyle='rgba(120,255,140,0.85)';
       ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
     }
+    ctx.restore();
+  }
 
-    // UI band
+  // ---------- Main loop ----------
+  function frame(){
+    // background
+    ctx.fillStyle='#050805';
+    ctx.fillRect(0,0,W,H);
+
+    // ricostruzione frammenti SOLO quando serve (e throttled)
+    if(fragDirty){
+      const now = performance.now();
+      if(now - lastFragRebuild > 120){
+        rebuildFragments();
+      }
+    }
+
+    // cloth step (solo punti non in frammento)
+    for(const p of points){
+      if(p.frag !== -1) continue;
+      p.verlet();
+    }
+
+    // interazione cloth (solo non-fragment)
+    applyVoidField();
+
+    // groove paint
+    paintGrooveFromPointer();
+
+    // constraints (saltano i fragment già in Link.satisfy)
+    for(let k=0;k<ITER;k++){
+      for(const l of links) l.satisfy();
+      for(const p of points){
+        if(p.pinned) continue;
+        if(p.frag !== -1) continue;
+        p.x = clamp(p.x, 2, W-2);
+        p.y = clamp(p.y, 2, H-2);
+      }
+    }
+
+    // update frammenti: RESTANO visibili + mucchietto on-beat
+    updateFragmentsLive();
+
+    // draw
+    drawCloth();
     drawGrooveBand();
 
     // pointer dot
-    ctx.fillStyle = pointer.shift ? 'rgba(255,180,80,0.9)' : 'rgba(180,255,200,0.9)';
+    ctx.fillStyle = (pointer.shift || cutMode) ? 'rgba(255,180,80,0.9)' : 'rgba(180,255,200,0.9)';
     ctx.beginPath(); ctx.arc(pointer.x, pointer.y, 4, 0, Math.PI*2); ctx.fill();
 
     requestAnimationFrame(frame);
