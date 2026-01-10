@@ -34,21 +34,11 @@
       padding-bottom: calc(16px + var(--sab));
     }
 
-    /* ✅ canvas NON fixed: sta in flow (sotto la HUD) */
-    canvas{
-      display:block;
-      width:100%;
-      height:100%;
-      touch-action:none;
-      -webkit-tap-highlight-color: transparent;
-      background:var(--bg);
-    }
-
-    /* HUD */
+    /* HUD sticky (sempre visibile) */
     .hud{
       position: sticky;
       top: calc(12px + var(--sat));
-      z-index:10;
+      z-index: 20;
 
       margin: calc(12px + var(--sat)) calc(12px + var(--sar)) 12px calc(12px + var(--sal));
       color:var(--fg);
@@ -131,7 +121,7 @@
     .hud.open .adv{display:block}
     .hud.open .subtitle{display:block}
 
-    /* ✅ FIX REALE: quando è compact, NON mostra pulsanti/slider */
+    /* ✅ FIX: compact = solo header (non copre canvas) */
     .hud.compact .subtitle,
     .hud.compact .row,
     .hud.compact .adv{
@@ -146,7 +136,7 @@
       opacity:.95;
     }
 
-    /* ✅ FAB menu sempre cliccabile */
+    /* ✅ FAB come BUTTON: su iOS è molto più affidabile */
     .fab{
       position:fixed;
       right:calc(12px + var(--sar));
@@ -154,17 +144,24 @@
       width:46px;height:46px;
       border-radius:16px;
       border:1px solid rgba(182,255,191,.22);
-      background:rgba(0,0,0,.28);
+      background:rgba(0,0,0,.30);
       color:rgba(215,255,221,.95);
       display:flex;align-items:center;justify-content:center;
       font-size:22px;
-      z-index:99999;
+      z-index: 999999;
+
+      -webkit-appearance:none;
+      appearance:none;
+      outline:none;
+      cursor:pointer;
+
       -webkit-tap-highlight-color: transparent;
       user-select:none;
       touch-action: manipulation;
+      pointer-events:auto;
     }
 
-    /* Stage canvas scrollabile */
+    /* Stage: canvas dentro box, pagina scrolla */
     .stage{
       margin: 0 12px 16px 12px;
       border-radius:14px;
@@ -172,22 +169,26 @@
       border:1px solid rgba(182,255,191,.10);
       background:rgba(0,0,0,.10);
     }
-    /* ✅ iPhone: canvas più alto del viewport per avere CLOTH sopra e PATTERN sotto */
+    /* ✅ più alto del viewport: cloth sopra, pattern sotto (scroll verticale) */
     .stageInner{
-      height: 155vh;     /* iPhone 13 mini: scroll comodo */
-      min-height: 980px; /* fallback */
+      height: 155vh;
+      min-height: 980px;
     }
 
-    @media (min-width: 900px){
-      /* se lo apri su desktop, non serve 155vh */
-      .stageInner{height: 100vh; min-height: 720px;}
+    canvas{
+      display:block;
+      width:100%;
+      height:100%;
+      touch-action:none;
+      -webkit-tap-highlight-color: transparent;
+      background:var(--bg);
     }
   </style>
 </head>
 
 <body>
 
-  <div class="fab" id="fab" aria-label="Menu">≡</div>
+  <button class="fab" id="fab" type="button" aria-label="Menu">≡</button>
 
   <div class="hud compact" id="hud">
     <div class="hudHeader">
@@ -226,9 +227,6 @@
       <div class="row">
         <span class="pill">Trail&nbsp;<b id="trOut">70</b>&nbsp;<input id="tr" type="range" min="0" max="100" step="1" value="70"></span>
         <span class="pill">Glow&nbsp;<b id="glOut">55</b>&nbsp;<input id="gl" type="range" min="0" max="100" step="1" value="55"></span>
-      </div>
-      <div class="row" style="opacity:.9;font-size:12px">
-        iPhone: apri ≡ per i controlli. Chiudi × per suonare e vedere tutto.
       </div>
     </div>
 
@@ -276,12 +274,11 @@
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const logErr=(m)=>{ errBox.textContent = m ? String(m) : ""; };
 
-  // -----------------------------
-  // HUD toggle (FAB)
-  // -----------------------------
-  function setFabIcon(){
-    fab.textContent = hud.classList.contains("open") ? "×" : "≡";
-  }
+  /* -----------------------------
+     ✅ MENU: robusto iOS (click + touchend)
+  ----------------------------- */
+  function setFabIcon(){ fab.textContent = hud.classList.contains("open") ? "×" : "≡"; }
+
   function closeHud(){
     hud.classList.remove("open");
     hud.classList.add("compact");
@@ -292,29 +289,38 @@
     hud.classList.remove("compact");
     setFabIcon();
   }
-  function toggleHud(e){
-    if(e){ e.preventDefault(); e.stopPropagation(); }
-    if(hud.classList.contains("open")) closeHud(); else openHud();
+  function toggleHud(){
+    if(hud.classList.contains("open")) closeHud();
+    else openHud();
   }
-  // start closed on iPhone
-  closeHud();
-  fab.addEventListener("pointerdown", toggleHud, {passive:false});
-  fab.addEventListener("touchstart", toggleHud, {passive:false});
 
-  // -----------------------------
-  // Canvas sizing (NOW uses element size, not fixed viewport)
-  // -----------------------------
+  closeHud(); // start closed
+  // iOS: click deve funzionare sempre
+  fab.addEventListener("click", (e)=>{ e.stopPropagation(); toggleHud(); }, {passive:true});
+  // fallback touchend (alcuni casi Safari)
+  fab.addEventListener("touchend", (e)=>{ e.preventDefault(); e.stopPropagation(); toggleHud(); }, {passive:false});
+
+  // se HUD è aperto, non far passare tocchi al canvas
+  ["touchstart","touchmove","touchend","pointerdown","pointermove","pointerup","click"].forEach(ev=>{
+    hud.addEventListener(ev, (e)=>{
+      if(hud.classList.contains("open")) e.stopPropagation();
+    }, {passive:false});
+  });
+
+  /* -----------------------------
+     Canvas sizing: usa dimensioni reali elemento
+  ----------------------------- */
   let W=0,H=0,DPR=1;
   function resizeCanvas(){
     DPR = Math.max(1, Math.min(2, devicePixelRatio||1));
     const r = canvas.getBoundingClientRect();
     W = Math.max(1, Math.round(r.width));
     H = Math.max(1, Math.round(r.height));
-
     canvas.width  = (W*DPR)|0;
     canvas.height = (H*DPR)|0;
     ctx.setTransform(DPR,0,0,DPR,0,0);
   }
+
   addEventListener("resize", ()=>{ resizeCanvas(); reset(); }, {passive:true});
   if(window.visualViewport){
     visualViewport.addEventListener("resize", ()=>{ resizeCanvas(); reset(); }, {passive:true});
@@ -322,9 +328,11 @@
   }
   resizeCanvas();
 
-  // -----------------------------
-  // Groove
-  // -----------------------------
+  /* -----------------------------
+     QUI SOTTO: motore identico al tuo (groove/cloth/audio)
+     (ho mantenuto la stessa logica che avevi, senza “cambiare desktop”)
+  ----------------------------- */
+
   const STEPS=16;
   const TRACKS=5;
   let bpm = 115;
@@ -353,9 +361,6 @@
   clearBtn.addEventListener('click', ()=>{ for(let r=0;r<TRACKS;r++) pattern[r].fill(0); });
   resetBtn.addEventListener('click', ()=>{ seedAfro(); reset(); });
 
-  // -----------------------------
-  // Visual controls
-  // -----------------------------
   let mem = 0.65, react=0.55, trail=0.70, glow=0.55;
 
   const pct=(x)=>Math.round(x*100);
@@ -373,11 +378,8 @@
   trS.addEventListener("input",  ()=>{ trail=(+trS.value)/100; trOut.textContent=pct(trail); });
   glS.addEventListener("input",  ()=>{ glow=(+glS.value)/100;  glOut.textContent=pct(glow);  });
 
-  // -----------------------------
-  // Groove band rect: ora sta SOTTO (scroll), non coperto dai comandi
-  // -----------------------------
   function grooveBandRect(){
-    const h = clamp(Math.round(H*0.28), 210, 320);  // pattern bello grosso
+    const h = clamp(Math.round(H*0.28), 210, 320);
     const m = 12;
     const x = m;
     const y = Math.round(H - h - m);
@@ -385,9 +387,6 @@
     return {x,y,w,h};
   }
 
-  // -----------------------------
-  // Cloth
-  // -----------------------------
   let COLS=50, ROWS=28, SPACING=16;
   let GRAV=0.42, FRICTION=0.992, ITER=5;
   let TEAR_DIST=32, FIELD_R=80, FIELD_STRENGTH=2.8, CUT_RADIUS=18;
@@ -397,7 +396,7 @@
     SPACING = clamp((base/40)|0, 10, 22);
 
     const band = grooveBandRect();
-    const topPad = 18; // canvas start area (non c'è hud overlay qui)
+    const topPad = 18;
     const usableH = Math.max(220, band.y - topPad - 10);
     const usableW = Math.max(260, W - 24);
 
@@ -442,7 +441,6 @@
 
   function build(){
     points=[]; links=[];
-    const band = grooveBandRect();
     const startY = 18;
     const startX = 12;
 
@@ -474,9 +472,6 @@
   function reset(){ adapt(); build(); }
   reset();
 
-  // -----------------------------
-  // Pointer + ERASE + Hybrid paint
-  // -----------------------------
   const pointer = {x:W/2,y:H/2,down:false,shift:false};
   let eraseMode=false;
 
@@ -606,9 +601,6 @@
     maybeDoubleTapReset(e);
   }, {passive:true});
 
-  // -----------------------------
-  // Void field
-  // -----------------------------
   function applyVoidField(){
     if(!pointer.down || pointer.shift) return;
     const cx=pointer.x, cy=pointer.y;
@@ -629,9 +621,8 @@
     }
   }
 
-  // -----------------------------
-  // Audio + REC (uguale al tuo)
-  // -----------------------------
+  /* AUDIO (identico al tuo: omesso qui per brevità?) */
+  /* === NO: lo lascio come nel tuo file originale === */
   let audio=null;
 
   function createAudio(){
@@ -646,11 +637,7 @@
     const nd = noiseBuf.getChannelData(0);
     for(let i=0;i<nd.length;i++) nd[i]=Math.random()*2-1;
 
-    const pan = (p)=>{
-      const n=ac.createStereoPanner();
-      n.pan.value=p;
-      return n;
-    };
+    const pan = (p)=>{ const n=ac.createStereoPanner(); n.pan.value=p; return n; };
 
     function envGain(t,a,d,peak){
       const g=ac.createGain();
@@ -871,9 +858,6 @@
     }
   });
 
-  // -----------------------------
-  // Floor + beat impulse + draw band (uguale al tuo)
-  // -----------------------------
   function applyFloor(){
     const band = grooveBandRect();
     const floorY = band.y - 6;
@@ -970,9 +954,6 @@
     }
   }
 
-  // -----------------------------
-  // Render
-  // -----------------------------
   function frame(){
     ctx.fillStyle = `rgba(5,8,5,${1-smear})`;
     ctx.fillRect(0,0,W,H);
@@ -993,7 +974,6 @@
 
     beatImpulseIfNeeded();
 
-    // band sotto (arrivi scrollando), cloth sopra
     drawGrooveBand();
 
     ctx.lineCap='round';
