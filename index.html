@@ -41,6 +41,7 @@
       z-index:1;
     }
 
+    /* HUD */
     .hud{
       position:fixed;
       left:calc(12px + var(--sal));
@@ -76,17 +77,7 @@
       opacity:.92;
     }
 
-    .menuBtn{
-      width:44px;height:44px;
-      border-radius:14px;
-      border:1px solid rgba(182,255,191,.20);
-      background:rgba(0,0,0,.22);
-      display:flex;align-items:center;justify-content:center;
-      cursor:pointer;
-      -webkit-tap-highlight-color: transparent;
-      flex:0 0 auto;
-    }
-
+    /* righe/btn */
     .row{margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .sp{flex:1}
 
@@ -151,6 +142,33 @@
       opacity:.95;
     }
 
+    /* ✅ FIX iPhone: quando HUD è CHIUSO non deve bloccare tocchi */
+    .hud.compact{
+      pointer-events:none;
+    }
+    .hud.compact *{
+      pointer-events:none;
+    }
+
+    /* ✅ FAB menu sempre cliccabile e sopra tutto */
+    .fab{
+      position:fixed;
+      right:calc(12px + var(--sar));
+      top:calc(12px + var(--sat));
+      width:46px;height:46px;
+      border-radius:16px;
+      border:1px solid rgba(182,255,191,.22);
+      background:rgba(0,0,0,.28);
+      color:rgba(215,255,221,.95);
+      display:flex;align-items:center;justify-content:center;
+      font-size:22px;
+      z-index:99999;
+      -webkit-tap-highlight-color: transparent;
+      user-select:none;
+      touch-action: manipulation;
+      pointer-events:auto;
+    }
+
     @media (orientation: landscape){
       .hud{padding:10px 10px}
       .hud.compact .row{margin-top:8px}
@@ -165,6 +183,9 @@
 <body>
   <canvas id="c"></canvas>
 
+  <!-- ✅ FAB separato: non è dentro l'HUD, quindi funziona sempre -->
+  <div class="fab" id="fab" aria-label="Menu">≡</div>
+
   <div class="hud compact" id="hud">
     <div class="hudHeader">
       <div style="flex:1">
@@ -174,7 +195,8 @@
           Tap band = toggle • Shift = taglia • Doppio tap/click = reset
         </div>
       </div>
-      <div class="menuBtn" id="menuBtn" aria-label="Menu">≡</div>
+      <!-- (teniamo il vecchio menuBtn ma lo rendiamo inutile su iPhone) -->
+      <div style="width:44px;height:44px"></div>
     </div>
 
     <div class="row">
@@ -217,7 +239,7 @@
   const ctx = canvas.getContext('2d', { alpha:false });
 
   const hud = document.getElementById('hud');
-  const menuBtn = document.getElementById('menuBtn');
+  const fab = document.getElementById('fab');
   const errBox = document.getElementById('err');
 
   const audioBtn = document.getElementById('audioBtn');
@@ -270,7 +292,6 @@
     ctx.setTransform(DPR,0,0,DPR,0,0);
   }
 
-  // detect "phone-ish" (works even before W/H)
   function isPhone(){
     const w = W || innerWidth, h = H || innerHeight;
     return Math.min(w,h) <= 480;
@@ -284,13 +305,19 @@
   resizeCanvas();
 
   // -----------------------------
-  // HUD open/close — iPhone starts CLOSED and toggle works (pointer/touch)
+  // HUD open/close — FIX iPhone (starts closed + always closable)
   // -----------------------------
+  function setFabIcon(){
+    const open = hud.classList.contains("open");
+    fab.textContent = open ? "×" : "≡";
+  }
+
   function setDefaultHudState(){
-    // iPhone: start closed ALWAYS
+    // iPhone: start CLOSED ALWAYS
     if(isPhone()){
       hud.classList.add("compact");
       hud.classList.remove("open");
+      setFabIcon();
       return;
     }
     // desktop/tablet: portrait open, landscape closed
@@ -302,14 +329,14 @@
       hud.classList.remove("compact");
       hud.classList.add("open");
     }
+    setFabIcon();
   }
   setDefaultHudState();
   addEventListener("orientationchange", ()=>setTimeout(setDefaultHudState, 80));
   addEventListener("resize", ()=>setTimeout(setDefaultHudState, 80));
 
   function toggleHud(e){
-    e.preventDefault();
-    e.stopPropagation();
+    if(e){ e.preventDefault(); e.stopPropagation(); }
     if(hud.classList.contains("open")){
       hud.classList.remove("open");
       hud.classList.add("compact");
@@ -317,13 +344,20 @@
       hud.classList.add("open");
       hud.classList.remove("compact");
     }
+    setFabIcon();
   }
-  menuBtn.addEventListener("pointerdown", toggleHud, {passive:false});
-  menuBtn.addEventListener("touchstart", toggleHud, {passive:false}); // iOS fallback
 
-  // IMPORTANT: touches on HUD must NEVER reach canvas
+  // FAB: listener robusto iOS
+  fab.addEventListener("pointerdown", toggleHud, {passive:false});
+  fab.addEventListener("touchstart", toggleHud, {passive:false});
+
+  // Se HUD è aperto, blocca propagazione verso canvas
   ["pointerdown","pointermove","pointerup","click","touchstart","touchmove","touchend"].forEach(ev=>{
-    hud.addEventListener(ev, (e)=>{ e.stopPropagation(); }, {passive:false});
+    hud.addEventListener(ev, (e)=>{
+      if(hud.classList.contains("open")){
+        e.stopPropagation();
+      }
+    }, {passive:false});
   });
 
   // -----------------------------
@@ -1022,7 +1056,6 @@
       }
     }
 
-    // beat-driven move (keeps fragments visible + dancing on beat)
     beatImpulseIfNeeded();
 
     // DRAW ORDER: band first (behind) then cloth on top
