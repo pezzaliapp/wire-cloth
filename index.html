@@ -12,9 +12,7 @@
       --fg2:rgba(215,255,221,.95);
       --line:rgba(182,255,191,.22);
       --panel:rgba(0,0,0,.30);
-      --panel2:rgba(0,0,0,.22);
 
-      /* safe areas iOS */
       --sat: env(safe-area-inset-top, 0px);
       --sar: env(safe-area-inset-right, 0px);
       --sab: env(safe-area-inset-bottom, 0px);
@@ -41,7 +39,6 @@
       z-index:1;
     }
 
-    /* HUD */
     .hud{
       position:fixed;
       left:calc(12px + var(--sal));
@@ -59,6 +56,7 @@
 
       user-select:none;
       touch-action: manipulation;
+      pointer-events:auto;
     }
 
     .hudHeader{display:flex; align-items:flex-start; gap:10px;}
@@ -77,7 +75,21 @@
       opacity:.92;
     }
 
-    /* righe/btn */
+    .menuBtn{
+      width:44px;height:44px;
+      border-radius:14px;
+      border:1px solid rgba(182,255,191,.20);
+      background:rgba(0,0,0,.22);
+      display:flex;align-items:center;justify-content:center;
+      cursor:pointer;
+      -webkit-tap-highlight-color: transparent;
+      flex:0 0 auto;
+      color:rgba(215,255,221,.95);
+      font-size:22px;
+      user-select:none;
+      touch-action: manipulation;
+    }
+
     .row{margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .sp{flex:1}
 
@@ -142,15 +154,11 @@
       opacity:.95;
     }
 
-    /* ✅ FIX iPhone: quando HUD è CHIUSO non deve bloccare tocchi */
-    .hud.compact{
-      pointer-events:none;
-    }
-    .hud.compact *{
-      pointer-events:none;
-    }
+    /* ✅ iPhone: quando HUD è compact, NON deve bloccare il canvas */
+    .isPhone .hud.compact{ pointer-events:none; }
+    .isPhone .hud.compact *{ pointer-events:none; }
 
-    /* ✅ FAB menu sempre cliccabile e sopra tutto */
+    /* FAB menu: SOLO iPhone */
     .fab{
       position:fixed;
       right:calc(12px + var(--sar));
@@ -160,7 +168,8 @@
       border:1px solid rgba(182,255,191,.22);
       background:rgba(0,0,0,.28);
       color:rgba(215,255,221,.95);
-      display:flex;align-items:center;justify-content:center;
+      display:none;
+      align-items:center;justify-content:center;
       font-size:22px;
       z-index:99999;
       -webkit-tap-highlight-color: transparent;
@@ -168,6 +177,9 @@
       touch-action: manipulation;
       pointer-events:auto;
     }
+    .isPhone .fab{ display:flex; }
+    /* su iPhone nascondiamo il menuBtn interno (tanto c'è il FAB) */
+    .isPhone .menuBtn{ display:none; }
 
     @media (orientation: landscape){
       .hud{padding:10px 10px}
@@ -183,7 +195,6 @@
 <body>
   <canvas id="c"></canvas>
 
-  <!-- ✅ FAB separato: non è dentro l'HUD, quindi funziona sempre -->
   <div class="fab" id="fab" aria-label="Menu">≡</div>
 
   <div class="hud compact" id="hud">
@@ -191,12 +202,11 @@
       <div style="flex:1">
         <div class="title">Wire Cloth + Afro Groove</div>
         <div class="subtitle">
-          Hold & drag = vuoti + groove (ovunque) • Band bassa = editor preciso<br>
-          Tap band = toggle • Shift = taglia • Doppio tap/click = reset
+          Hold & drag = vuoti + groove • Band bassa = editor preciso<br>
+          Tap band = toggle • (Desktop) Shift = taglia • Doppio tap/click = reset
         </div>
       </div>
-      <!-- (teniamo il vecchio menuBtn ma lo rendiamo inutile su iPhone) -->
-      <div style="width:44px;height:44px"></div>
+      <div class="menuBtn" id="menuBtn" aria-label="Menu">≡</div>
     </div>
 
     <div class="row">
@@ -226,7 +236,7 @@
         <span class="pill">Glow&nbsp;<b id="glOut">55</b>&nbsp;<input id="gl" type="range" min="0" max="100" step="1" value="55"></span>
       </div>
       <div class="row" style="opacity:.9;font-size:12px">
-        Tip iPhone: premi <b>AUDIO</b> (gesture), poi <b>REC</b>. In landscape: apri ≡ per i controlli.
+        iPhone: usa il pulsante ≡ in alto. Chiudi anche tappando fuori dal pannello.
       </div>
     </div>
 
@@ -240,6 +250,7 @@
 
   const hud = document.getElementById('hud');
   const fab = document.getElementById('fab');
+  const menuBtn = document.getElementById('menuBtn');
   const errBox = document.getElementById('err');
 
   const audioBtn = document.getElementById('audioBtn');
@@ -269,7 +280,7 @@
   const logErr=(m)=>{ errBox.textContent = m ? String(m) : ""; };
 
   // -----------------------------
-  // Viewport sizing (iOS visualViewport fix)
+  // Viewport sizing
   // -----------------------------
   let W=0,H=0,DPR=1;
 
@@ -292,9 +303,12 @@
     ctx.setTransform(DPR,0,0,DPR,0,0);
   }
 
-  function isPhone(){
-    const w = W || innerWidth, h = H || innerHeight;
-    return Math.min(w,h) <= 480;
+  // ✅ iPhone detection “hard” (evita i falsi 980px di Safari)
+  function isIPhone(){
+    const ua = navigator.userAgent || "";
+    const isiOS = /iPhone|iPod/.test(ua);           // iPad escluso volutamente
+    const coarse = matchMedia("(pointer: coarse)").matches;
+    return isiOS || (coarse && Math.min(screen.width, screen.height) <= 480);
   }
 
   if(window.visualViewport){
@@ -305,35 +319,42 @@
   resizeCanvas();
 
   // -----------------------------
-  // HUD open/close — FIX iPhone (starts closed + always closable)
+  // HUD logic (iPhone ALWAYS starts CLOSED)
   // -----------------------------
-  function setFabIcon(){
+  function setIcons(){
     const open = hud.classList.contains("open");
     fab.textContent = open ? "×" : "≡";
+    menuBtn.textContent = open ? "×" : "≡";
+  }
+
+  function forceClosed(){
+    hud.classList.add("compact");
+    hud.classList.remove("open");
+    setIcons();
   }
 
   function setDefaultHudState(){
-    // iPhone: start CLOSED ALWAYS
-    if(isPhone()){
-      hud.classList.add("compact");
-      hud.classList.remove("open");
-      setFabIcon();
-      return;
-    }
-    // desktop/tablet: portrait open, landscape closed
-    const isLand = matchMedia("(orientation: landscape)").matches;
-    if(isLand){
-      hud.classList.add("compact");
-      hud.classList.remove("open");
+    const phone = isIPhone();
+    document.documentElement.classList.toggle("isPhone", phone);
+
+    if(phone){
+      // ✅ sempre chiuso su iPhone, indipendentemente da orientamento/viewport
+      forceClosed();
     }else{
-      hud.classList.remove("compact");
-      hud.classList.add("open");
+      const isLand = matchMedia("(orientation: landscape)").matches;
+      if(isLand){
+        hud.classList.add("compact");
+        hud.classList.remove("open");
+      }else{
+        hud.classList.remove("compact");
+        hud.classList.add("open");
+      }
+      setIcons();
     }
-    setFabIcon();
   }
+
   setDefaultHudState();
   addEventListener("orientationchange", ()=>setTimeout(setDefaultHudState, 80));
-  addEventListener("resize", ()=>setTimeout(setDefaultHudState, 80));
 
   function toggleHud(e){
     if(e){ e.preventDefault(); e.stopPropagation(); }
@@ -344,18 +365,27 @@
       hud.classList.add("open");
       hud.classList.remove("compact");
     }
-    setFabIcon();
+    setIcons();
   }
 
-  // FAB: listener robusto iOS
-  fab.addEventListener("pointerdown", toggleHud, {passive:false});
-  fab.addEventListener("touchstart", toggleHud, {passive:false});
+  // ✅ iOS: usare anche click + touchend (più affidabile di pointerdown)
+  ["click","touchend"].forEach(ev=>{
+    fab.addEventListener(ev, toggleHud, {passive:false});
+    menuBtn.addEventListener(ev, toggleHud, {passive:false});
+  });
 
-  // Se HUD è aperto, blocca propagazione verso canvas
-  ["pointerdown","pointermove","pointerup","click","touchstart","touchmove","touchend"].forEach(ev=>{
+  // blocca input verso canvas SOLO quando HUD è open (così i bottoni funzionano)
+  ["pointerdown","pointermove","pointerup","touchstart","touchmove","touchend","mousedown","mouseup","click"].forEach(ev=>{
     hud.addEventListener(ev, (e)=>{
-      if(hud.classList.contains("open")){
-        e.stopPropagation();
+      if(hud.classList.contains("open")) e.stopPropagation();
+    }, {passive:false});
+  });
+
+  // ✅ chiudi anche tappando sul canvas quando HUD è open (iPhone friendly)
+  ["click","touchend"].forEach(ev=>{
+    canvas.addEventListener(ev, (e)=>{
+      if(isIPhone() && hud.classList.contains("open")){
+        toggleHud(e);
       }
     }, {passive:false});
   });
@@ -395,8 +425,8 @@
   // Visual controls
   // -----------------------------
   let mem = 0.65, react=0.55, trail=0.70, glow=0.55;
-
   const pct=(x)=>Math.round(x*100);
+
   memOut.textContent = pct(mem);
   reOut.textContent  = pct(react);
   trOut.textContent  = pct(trail);
@@ -406,13 +436,13 @@
   function updateSmear(){ smear = 0.15 + mem*0.55; }
   updateSmear();
 
-  memS.addEventListener("input", ()=>{ mem = (+memS.value)/100; memOut.textContent=pct(mem); updateSmear(); });
+  memS.addEventListener("input", ()=>{ mem=(+memS.value)/100; memOut.textContent=pct(mem); updateSmear(); });
   reS.addEventListener("input",  ()=>{ react=(+reS.value)/100; reOut.textContent=pct(react); });
   trS.addEventListener("input",  ()=>{ trail=(+trS.value)/100; trOut.textContent=pct(trail); });
   glS.addEventListener("input",  ()=>{ glow=(+glS.value)/100;  glOut.textContent=pct(glow);  });
 
   // -----------------------------
-  // Safe area bottom (px) for band placement
+  // Safe area bottom for band
   // -----------------------------
   function safeInsetBottomPx(){
     const v = getComputedStyle(document.documentElement).getPropertyValue("--sab").trim();
@@ -420,10 +450,9 @@
     return Number.isFinite(n) ? n : 0;
   }
 
-  // Groove band rect (iPhone: bigger + raised above safe area)
   function grooveBandRect(){
     const isLand = matchMedia("(orientation: landscape)").matches;
-    const phone = isPhone();
+    const phone = isIPhone();
 
     const frac = phone ? (isLand ? 0.46 : 0.40) : (isLand ? 0.40 : 0.34);
     const hMin = phone ? (isLand ? 150 : 180) : (isLand ? 120 : 150);
@@ -703,11 +732,7 @@
     const nd = noiseBuf.getChannelData(0);
     for(let i=0;i<nd.length;i++) nd[i]=Math.random()*2-1;
 
-    const pan = (p)=>{
-      const n=ac.createStereoPanner();
-      n.pan.value=p;
-      return n;
-    };
+    const pan = (p)=>{ const n=ac.createStereoPanner(); n.pan.value=p; return n; };
 
     function envGain(t,a,d,peak){
       const g=ac.createGain();
@@ -858,13 +883,7 @@
     }
     function stop(){ if(timer){ clearInterval(timer); timer=null; } }
 
-    return {
-      ac,
-      start, stop,
-      isRunning: ()=>!!timer,
-      startRec, stopRec,
-      isRecRunning: ()=>rec.isRec
-    };
+    return { ac, start, stop, isRunning: ()=>!!timer, startRec, stopRec, isRecRunning: ()=>rec.isRec };
   }
 
   function downloadBlob(blob, name){
@@ -933,7 +952,7 @@
   });
 
   // -----------------------------
-  // Floor above band + beat-driven impulse (fragments stay visible)
+  // Floor + beat impulse + draw band (come prima)
   // -----------------------------
   function applyFloor(){
     const band = grooveBandRect();
@@ -957,18 +976,18 @@
     return 0;
   }
 
-  let lastStep = -1;
+  let lastStep=-1;
   function beatImpulseIfNeeded(){
     if(!(audio && audio.isRunning())) return;
-    const s = getPlayStep();
-    if(s === lastStep) return;
-    lastStep = s;
+    const s=getPlayStep();
+    if(s===lastStep) return;
+    lastStep=s;
 
     const k = pattern[0][s] ? 1.0 : 0.0;
     const c = pattern[1][s] ? 0.7 : 0.0;
     const g = pattern[3][s] ? 0.5 : 0.0;
     const power = k + c + g;
-    if(power <= 0) return;
+    if(power<=0) return;
 
     const band = grooveBandRect();
     const floorY = band.y - 6;
@@ -984,17 +1003,14 @@
     }
   }
 
-  // -----------------------------
-  // Draw groove band (more visible grid on iPhone)
-  // -----------------------------
   function drawGrooveBand(){
     const band=grooveBandRect();
 
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillStyle='rgba(0,0,0,0.35)';
     ctx.fillRect(band.x, band.y, band.w, band.h);
 
-    ctx.strokeStyle = 'rgba(180,255,200,0.32)';
-    ctx.lineWidth = (DPR > 1 ? 1 : 1.35);
+    ctx.strokeStyle='rgba(180,255,200,0.32)';
+    ctx.lineWidth = (DPR>1 ? 1 : 1.35);
 
     for(let s=0;s<=STEPS;s++){
       const x = band.x + (s/STEPS)*band.w;
@@ -1011,7 +1027,6 @@
         const x0 = band.x + (s/STEPS)*band.w;
         const y0 = band.y + (r/TRACKS)*band.h;
         const w = band.w/STEPS, h = band.h/TRACKS;
-
         const a = [0.42,0.36,0.30,0.34,0.28][r];
         ctx.fillStyle = `rgba(120,255,140,${a})`;
         ctx.fillRect(x0+2, y0+2, w-4, h-4);
@@ -1019,16 +1034,16 @@
     }
 
     if(audio && audio.isRunning()){
-      const ph = getPlayStep();
+      const ph=getPlayStep();
       const x = band.x + (ph/STEPS)*band.w;
-      ctx.strokeStyle = 'rgba(200,255,215,0.70)';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle='rgba(200,255,215,0.70)';
+      ctx.lineWidth=2;
       ctx.beginPath(); ctx.moveTo(x, band.y); ctx.lineTo(x, band.y+band.h); ctx.stroke();
     }
 
-    ctx.fillStyle = 'rgba(182,255,191,.70)';
-    ctx.font = '12px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial';
-    const labels = ["K","C","S","G","B"];
+    ctx.fillStyle='rgba(182,255,191,.70)';
+    ctx.font='12px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial';
+    const labels=["K","C","S","G","B"];
     for(let r=0;r<TRACKS;r++){
       const y = band.y + ((r+0.5)/TRACKS)*band.h;
       ctx.fillText(labels[r], band.x + 6, y + 4);
@@ -1057,8 +1072,6 @@
     }
 
     beatImpulseIfNeeded();
-
-    // DRAW ORDER: band first (behind) then cloth on top
     drawGrooveBand();
 
     ctx.lineCap='round';
