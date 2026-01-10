@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Wire Cloth + Groove + Falling Pieces (iPhone-safe)</title>
+  <title>Wire Cloth + Groove — FULL (iPhone safe + REC WAV)</title>
   <style>
     :root{
       --bg:#050805;
@@ -24,10 +24,9 @@
       -webkit-tap-highlight-color:transparent;
     }
 
-    /* HUD */
     .hud{
       position:fixed;left:12px;top:12px;
-      width:min(720px,calc(100vw - 24px));
+      width:min(760px,calc(100vw - 24px));
       background:var(--panel);
       border:1px solid var(--border);
       border-radius:16px;
@@ -36,7 +35,10 @@
       -webkit-backdrop-filter: blur(10px);
       box-shadow: 0 8px 40px rgba(0,0,0,.35);
       pointer-events:auto;
+      z-index: 10;
     }
+    .hud.menu-open #hudBody{ display:none; } /* FIX: menu non lascia pannello sotto */
+
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .title{font-weight:800;letter-spacing:.2px;display:flex;align-items:center;gap:10px}
     .badge{
@@ -67,14 +69,12 @@
     .small{font-size:12px;opacity:.88}
     .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;background:rgba(0,0,0,.25);border:1px solid rgba(182,255,191,.15);padding:2px 6px;border-radius:8px}
 
-    /* Hamburger menu */
+    /* Hamburger */
     .menuBtn{
       width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;
       padding:0;border-radius:14px;
     }
-    .hamb{
-      width:18px;height:12px;position:relative;opacity:.95;
-    }
+    .hamb{ width:18px;height:12px;position:relative;opacity:.95; }
     .hamb::before,.hamb::after,.hamb span{
       content:"";position:absolute;left:0;right:0;height:2px;background:var(--fg2);border-radius:2px;
     }
@@ -84,7 +84,7 @@
 
     .drawer{
       position:fixed;left:12px;top:70px;
-      width:min(360px,calc(100vw - 24px));
+      width:min(380px,calc(100vw - 24px));
       background:rgba(0,0,0,.52);
       border:1px solid rgba(182,255,191,.22);
       border-radius:16px;
@@ -95,18 +95,16 @@
       transform: translateY(-8px);
       opacity:0; pointer-events:none;
       transition: opacity .18s ease, transform .18s ease;
+      z-index: 20;
     }
-    .drawer.open{
-      opacity:1; pointer-events:auto;
-      transform: translateY(0);
-    }
+    .drawer.open{ opacity:1; pointer-events:auto; transform: translateY(0); }
     .drawer h3{margin:0 0 8px 0;font-size:14px;color:var(--fg2)}
-    .drawer .opt{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid rgba(182,255,191,.12)}
-    .toggle{
-      display:inline-flex;align-items:center;gap:8px;
-      font-size:12px;opacity:.9;
+    .drawer .opt{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      padding:8px 0;border-top:1px solid rgba(182,255,191,.12)
     }
-    .toggle input{transform: scale(1.1)}
+    .toggle{ display:inline-flex;align-items:center;gap:8px;font-size:12px;opacity:.9; }
+    .toggle input{ transform: scale(1.1); }
   </style>
 </head>
 
@@ -116,41 +114,42 @@
   <div class="hud" id="hud">
     <div class="row" style="justify-content:space-between">
       <div class="title">
-        <button class="menuBtn" id="menuBtn" aria-label="Menu">
-          <div class="hamb"><span></span></div>
-        </button>
+        <button class="menuBtn" id="menuBtn" aria-label="Menu"><div class="hamb"><span></span></div></button>
         <span>Wire Cloth + Groove</span>
         <span class="badge" id="modeBadge">MODE: …</span>
       </div>
       <div class="badge" id="statusBadge">READY</div>
     </div>
 
-    <div class="row" style="margin-top:10px">
-      <button id="btnPlay" class="on">PLAY</button>
-      <button id="btnErase" class="on">CUT: ON</button>
-      <button id="btnAfro" class="on">AFRO</button>
-      <button id="btnPieces" class="on">PIECES</button>
-      <button id="btnClear">CLEAR GROOVE</button>
-      <button id="btnReset">RESET</button>
-    </div>
+    <div id="hudBody">
+      <div class="row" style="margin-top:10px">
+        <button id="btnPlay" class="on">PLAY</button>
+        <button id="btnRec">REC WAV</button>
+        <button id="btnCut" class="on">CUT: ON</button>
+        <button id="btnAfro" class="on">AFRO</button>
+        <button id="btnPieces" class="on">PIECES</button>
+        <button id="btnClear">CLEAR GROOVE</button>
+        <button id="btnReset">RESET</button>
+      </div>
 
-    <div class="slider">
-      <label>BPM <b id="bpmVal">123</b></label>
-      <input id="bpm" type="range" min="80" max="150" value="123" step="1">
-      <span class="small">Swing <b id="swVal">0.58</b></span>
-      <input id="sw" type="range" min="0.45" max="0.65" value="0.58" step="0.01">
-    </div>
+      <div class="slider">
+        <label>BPM <b id="bpmVal">123</b></label>
+        <input id="bpm" type="range" min="80" max="150" value="123" step="1">
+        <span class="small">Swing <b id="swVal">0.58</b></span>
+        <input id="sw" type="range" min="0.45" max="0.65" value="0.58" step="0.01">
+      </div>
 
-    <div class="slider">
-      <label>Trail <b id="trailVal">0.78</b></label>
-      <input id="trail" type="range" min="0.00" max="0.95" value="0.78" step="0.01">
-      <span class="small">Glow <b id="glowVal">0.60</b></span>
-      <input id="glow" type="range" min="0.00" max="0.95" value="0.60" step="0.01">
-    </div>
+      <div class="slider">
+        <label>Trail <b id="trailVal">0.78</b></label>
+        <input id="trail" type="range" min="0.00" max="0.95" value="0.78" step="0.01">
+        <span class="small">Glow <b id="glowVal">0.60</b></span>
+        <input id="glow" type="range" min="0.00" max="0.95" value="0.60" step="0.01">
+      </div>
 
-    <div class="hint">
-      <b>iPhone:</b> tap/drag nella band in basso = groove • drag sopra = taglia cloth (se CUT ON)<br>
-      <span class="small">Desktop: <span class="kbd">Shift</span> mentre trascini = taglio più ampio.</span>
+      <div class="hint">
+        <b>iPhone:</b> tap/drag nella band in basso = groove • drag sopra = taglia cloth (se CUT ON)<br>
+        <span class="small">Desktop: <span class="kbd">Shift</span> mentre trascini = taglio più ampio • doppio tap = reset.</span>
+      </div>
     </div>
   </div>
 
@@ -163,23 +162,23 @@
     </div>
 
     <div class="opt">
-      <div class="toggle"><b>Cloth react</b><span class="small">quanto vibra coi colpi</span></div>
-      <input id="react" type="range" min="0.10" max="0.95" value="0.60" step="0.01" style="width:160px">
+      <div class="toggle"><b>Cloth react</b><span class="small">vibra coi colpi</span></div>
+      <input id="react" type="range" min="0.10" max="0.95" value="0.60" step="0.01" style="width:170px">
     </div>
 
     <div class="opt">
-      <div class="toggle"><b>Pieces amount</b><span class="small">particelle che cadono</span></div>
-      <input id="piecesAmt" type="range" min="100" max="2400" value="1400" step="50" style="width:160px">
+      <div class="toggle"><b>Pieces amount</b><span class="small">particelle</span></div>
+      <input id="piecesAmt" type="range" min="0" max="2600" value="1400" step="50" style="width:170px">
     </div>
 
     <div class="opt">
-      <div class="toggle"><b>Wind</b><span class="small">spinta orizzontale</span></div>
-      <input id="wind" type="range" min="-1.0" max="1.0" value="0.20" step="0.01" style="width:160px">
+      <div class="toggle"><b>Wind</b><span class="small">spinta</span></div>
+      <input id="wind" type="range" min="-1.0" max="1.0" value="0.20" step="0.01" style="width:170px">
     </div>
 
     <div class="opt">
       <div class="toggle"><b>Gravity</b><span class="small">caduta</span></div>
-      <input id="grav" type="range" min="300" max="1400" value="980" step="10" style="width:160px">
+      <input id="grav" type="range" min="300" max="1400" value="980" step="10" style="width:170px">
     </div>
 
     <div class="opt">
@@ -196,6 +195,7 @@
 
   const $ = (id) => document.getElementById(id);
 
+  const hud = $('hud');
   const menuBtn = $('menuBtn');
   const drawer = $('drawer');
   const closeMenu = $('closeMenu');
@@ -204,7 +204,8 @@
   const statusBadge = $('statusBadge');
 
   const btnPlay = $('btnPlay');
-  const btnErase = $('btnErase');
+  const btnRec = $('btnRec');
+  const btnCut = $('btnCut');
   const btnAfro = $('btnAfro');
   const btnPieces = $('btnPieces');
   const btnClear = $('btnClear');
@@ -284,17 +285,17 @@
 
   function setAfroPreset(){
     for(let r=0;r<LANES.length;r++) grid[r].fill(0);
-    // Afro-ish
-    [0,3,7,10,12].forEach(i=>grid[0][i]=1); // kick
-    [4,12].forEach(i=>grid[1][i]=1);        // clap
-    [8].forEach(i=>grid[2][i]=1);           // snare
-    [2,5,6,9,11,14,15].forEach(i=>grid[3][i]=1); // conga
-    [0,6,10,12].forEach(i=>grid[4][i]=1);   // bass
+    [0,3,7,10,12].forEach(i=>grid[0][i]=1);          // kick
+    [4,12].forEach(i=>grid[1][i]=1);                 // clap
+    [8].forEach(i=>grid[2][i]=1);                    // snare
+    [2,5,6,9,11,14,15].forEach(i=>grid[3][i]=1);     // conga
+    [0,6,10,12].forEach(i=>grid[4][i]=1);            // bass
   }
   if(afroOn) setAfroPreset();
 
-  // ---------- Audio ----------
-  let AC=null, master=null;
+  // ---------- Audio (Realtime) ----------
+  let AC=null, master=null, NOISE=null;
+
   function ensureAudio(){
     if(AC) return;
     AC = new (window.AudioContext || window.webkitAudioContext)();
@@ -309,74 +310,193 @@
     for(let i=0;i<len;i++) d[i] = (Math.random()*2-1);
     return b;
   }
-  let NOISE=null;
 
-  function trigKick(t, vel){
-    const o = AC.createOscillator();
-    const g = AC.createGain();
+  function trigKick(ctx,t,vel,out){
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
     o.type='sine';
     o.frequency.setValueAtTime(140, t);
     o.frequency.exponentialRampToValueAtTime(48, t+0.09);
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(0.9*vel, t+0.005);
     g.gain.exponentialRampToValueAtTime(0.0001, t+0.12);
-    o.connect(g); g.connect(master);
+    o.connect(g); g.connect(out);
     o.start(t); o.stop(t+0.14);
   }
-  function trigClap(t, vel){
-    if(!NOISE) NOISE = noiseBuffer(AC);
-    const src = AC.createBufferSource(); src.buffer=NOISE;
-    const bp = AC.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=2200; bp.Q.value=0.8;
-    const g = AC.createGain();
+  function trigClap(ctx,t,vel,out){
+    if(!NOISE) NOISE = noiseBuffer(ctx);
+    const src = ctx.createBufferSource(); src.buffer=NOISE;
+    const bp = ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=2200; bp.Q.value=0.8;
+    const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(0.6*vel, t+0.005);
     g.gain.exponentialRampToValueAtTime(0.0001, t+0.12);
-    src.connect(bp); bp.connect(g); g.connect(master);
+    src.connect(bp); bp.connect(g); g.connect(out);
     src.start(t); src.stop(t+0.18);
   }
-  function trigSnare(t, vel){
-    if(!NOISE) NOISE = noiseBuffer(AC);
-    const src = AC.createBufferSource(); src.buffer=NOISE;
-    const hp = AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=900;
-    const g = AC.createGain();
+  function trigSnare(ctx,t,vel,out){
+    if(!NOISE) NOISE = noiseBuffer(ctx);
+    const src = ctx.createBufferSource(); src.buffer=NOISE;
+    const hp = ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=900;
+    const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(0.5*vel, t+0.005);
     g.gain.exponentialRampToValueAtTime(0.0001, t+0.18);
-    src.connect(hp); hp.connect(g); g.connect(master);
+    src.connect(hp); hp.connect(g); g.connect(out);
     src.start(t); src.stop(t+0.22);
   }
-  function trigConga(t, vel){
-    const o = AC.createOscillator();
-    const g = AC.createGain();
+  function trigConga(ctx,t,vel,out){
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
     o.type='triangle';
     o.frequency.setValueAtTime(320, t);
     o.frequency.exponentialRampToValueAtTime(220, t+0.08);
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(0.35*vel, t+0.004);
     g.gain.exponentialRampToValueAtTime(0.0001, t+0.12);
-    o.connect(g); g.connect(master);
+    o.connect(g); g.connect(out);
     o.start(t); o.stop(t+0.14);
   }
-  function trigBass(t, vel){
-    const o = AC.createOscillator();
-    const g = AC.createGain();
+  function trigBass(ctx,t,vel,out){
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
     o.type='sawtooth';
     o.frequency.setValueAtTime(55, t);
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(0.18*vel, t+0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t+0.18);
-    o.connect(g); g.connect(master);
+    o.connect(g); g.connect(out);
     o.start(t); o.stop(t+0.22);
   }
 
-  function playCurrentStep(t){
-    // t is AC.currentTime adjusted by swing
+  function playCurrentStepRealtime(t){
     const vel=0.95;
-    if(grid[0][step]) trigKick(t, vel);
-    if(grid[1][step]) trigClap(t, vel*0.9);
-    if(grid[2][step]) trigSnare(t, vel*0.85);
-    if(grid[3][step]) trigConga(t, vel*0.7);
-    if(grid[4][step]) trigBass(t, vel*0.8);
+    if(grid[0][step]) trigKick(AC,t,vel,master);
+    if(grid[1][step]) trigClap(AC,t,vel*0.9,master);
+    if(grid[2][step]) trigSnare(AC,t,vel*0.85,master);
+    if(grid[3][step]) trigConga(AC,t,vel*0.7,master);
+    if(grid[4][step]) trigBass(AC,t,vel*0.8,master);
+  }
+
+  // ---------- REC WAV (Offline render 4 bars) ----------
+  function writeString(view, offset, string){
+    for(let i=0;i<string.length;i++) view.setUint8(offset+i, string.charCodeAt(i));
+  }
+  function audioBufferToWav(buffer){
+    const numCh = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const bitDepth = 16;
+    const samples = buffer.length;
+
+    const blockAlign = numCh * bitDepth/8;
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = samples * blockAlign;
+
+    const ab = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(ab);
+
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numCh, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitDepth, true);
+    writeString(view, 36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    const chans = [];
+    for(let c=0;c<numCh;c++) chans.push(buffer.getChannelData(c));
+
+    let offset = 44;
+    for(let i=0;i<samples;i++){
+      for(let c=0;c<numCh;c++){
+        let s = Math.max(-1, Math.min(1, chans[c][i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        offset += 2;
+      }
+    }
+    return new Blob([view], { type:'audio/wav' });
+  }
+
+  async function renderWav4Bars(){
+    // Offline render non richiede AC attivo, ma usiamo gli stessi parametri/pattern
+    const sr = 44100;
+    const bars = 4;
+    const beatsPerBar = 4;
+    const totalBeats = bars * beatsPerBar;
+    const secondsPerBeat = 60 / BPM;
+    const dur = totalBeats * secondsPerBeat;
+
+    const off = new OfflineAudioContext(2, Math.ceil(sr * dur), sr);
+    const out = off.createGain();
+    out.gain.value = 0.9;
+    out.connect(off.destination);
+
+    // local noise
+    const len = Math.floor(sr * 0.25);
+    const nbuf = off.createBuffer(1, len, sr);
+    const nd = nbuf.getChannelData(0);
+    for(let i=0;i<len;i++) nd[i] = (Math.random()*2-1);
+
+    const kick = (t, vel)=>trigKick(off,t,vel,out);
+    const clap = (t, vel)=>{
+      const src = off.createBufferSource(); src.buffer=nbuf;
+      const bp = off.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=2200; bp.Q.value=0.8;
+      const g = off.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(0.6*vel, t+0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t+0.12);
+      src.connect(bp); bp.connect(g); g.connect(out);
+      src.start(t); src.stop(t+0.18);
+    };
+    const sn = (t, vel)=>{
+      const src = off.createBufferSource(); src.buffer=nbuf;
+      const hp = off.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=900;
+      const g = off.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(0.5*vel, t+0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t+0.18);
+      src.connect(hp); hp.connect(g); g.connect(out);
+      src.start(t); src.stop(t+0.22);
+    };
+    const conga = (t, vel)=>trigConga(off,t,vel,out);
+    const bass = (t, vel)=>trigBass(off,t,vel,out);
+
+    const totalSteps = bars * STEPS;
+    for(let s=0; s<totalSteps; s++){
+      const localStep = s % STEPS;
+      const beatIndex = (s/4); // 16th = 1/4 beat
+      const baseT = beatIndex * secondsPerBeat;
+
+      const odd = (localStep % 2) === 1;
+      const swingSec = (SWING - 0.5) * 0.16 * secondsPerBeat;
+      const t = baseT + (odd ? swingSec : 0);
+
+      const vel = 0.95;
+      if(grid[0][localStep]) kick(t, vel);
+      if(grid[1][localStep]) clap(t, vel*0.9);
+      if(grid[2][localStep]) sn(t, vel*0.85);
+      if(grid[3][localStep]) conga(t, vel*0.7);
+      if(grid[4][localStep]) bass(t, vel*0.8);
+    }
+
+    const rendered = await off.startRendering();
+    const wav = audioBufferToWav(rendered);
+    const url = URL.createObjectURL(wav);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `wirecloth_${BPM}bpm_4bars.wav`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    setTimeout(()=>URL.revokeObjectURL(url), 15000);
   }
 
   // ---------- Cloth (Verlet) ----------
@@ -386,7 +506,6 @@
     PROFILE = profile();
     const mobile = PROFILE==="mobile";
 
-    // cloth density: mobile lighter
     const cols = mobile ? 54 : 82;
     const rows = mobile ? 30 : 46;
 
@@ -421,12 +540,6 @@
         }
       }
     }
-
-    // on mobile reduce glow/trail slightly for stability
-    if(mobile){
-      // non forzare sliders: solo "suggerisci"
-      // (le slider restano come le imposta l’utente)
-    }
   }
   makeCloth();
 
@@ -440,14 +553,13 @@
 
       p.ox = p.x; p.oy = p.y;
 
-      p.x += vx + (WIND * 40) * dt;   // vento lieve
+      p.x += vx + (WIND * 40) * dt;
       p.y += vy + (GRAV) * dt*dt;
 
-      // bounds
       if(p.x<0) p.x=0;
       if(p.x>W) p.x=W;
       if(p.y<0) p.y=0;
-      if(p.y>band.y0-2) p.y=band.y0-2; // non entra nella band
+      if(p.y>band.y0-2) p.y=band.y0-2;
     }
 
     const iters = (PROFILE==="mobile") ? 5 : 8;
@@ -481,7 +593,6 @@
   }
 
   function clothReact(hitAmount){
-    // vibrazione morbida verso l'alto
     const band = bandRect();
     const centerY = band.y0 - 80;
     const amt = Math.min(1.5, hitAmount) * REACT;
@@ -494,11 +605,8 @@
     }
   }
 
-  // ---------- Falling Pieces ----------
+  // ---------- Pieces ----------
   let pieces=[];
-  function resetPieces(){
-    pieces.length=0;
-  }
   function spawnPieces(n){
     const band=bandRect();
     for(let i=0;i<n;i++){
@@ -512,29 +620,23 @@
       });
     }
   }
-
   function updatePieces(dt){
     if(!piecesOn) return;
-    // target count (mobile less)
     const mobile = profile()==="mobile";
-    const target = Math.min(MAX_PIECES, mobile ? 1100 : 2400);
+    const target = Math.max(0, Math.min(MAX_PIECES, mobile ? 1100 : 2600));
 
-    if(pieces.length < target){
-      spawnPieces(Math.min(80, target - pieces.length));
-    }else if(pieces.length > target){
-      pieces.length = target;
-    }
+    if(pieces.length < target) spawnPieces(Math.min(90, target - pieces.length));
+    else if(pieces.length > target) pieces.length = target;
 
     const band=bandRect();
     const limitY = band.y0 - 6;
 
     for(const p of pieces){
       p.vx += (WIND*18) * dt;
-      p.vy += (GRAV*0.06) * dt; // "gravità leggera" per scorrere
+      p.vy += (GRAV*0.06) * dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
 
-      // wrap
       if(p.x < -10) p.x = W+10;
       if(p.x > W+10) p.x = -10;
       if(p.y > limitY){
@@ -544,13 +646,11 @@
       }
     }
   }
-
   function drawPieces(){
     if(!piecesOn) return;
     const band = bandRect();
     ctx.save();
     for(const p of pieces){
-      // non disegnare dentro la band
       if(p.y >= band.y0) continue;
       ctx.globalAlpha = p.a;
       ctx.fillStyle = '#b6ffbf';
@@ -559,18 +659,16 @@
     ctx.restore();
   }
 
-  // ---------- Draw Groove band ----------
+  // ---------- Draw band + cloth ----------
   function drawBand(){
     const band=bandRect();
     const x0=band.x0, y0=band.y0, w=band.w, h=band.h;
 
-    // background band
     ctx.save();
     ctx.globalAlpha = 0.95;
     ctx.fillStyle = '#050805';
     ctx.fillRect(x0,y0,w,h);
 
-    // grid lines
     ctx.globalAlpha = 0.34;
     ctx.strokeStyle = '#2b6a34';
     ctx.lineWidth = 1;
@@ -591,7 +689,6 @@
       ctx.stroke();
     }
 
-    // lane labels left
     ctx.globalAlpha = 0.85;
     ctx.fillStyle = '#b6ffbf';
     ctx.font = '12px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial';
@@ -599,7 +696,6 @@
       ctx.fillText(LANES[r].key, 10, y0 + (r+0.72)*laneH);
     }
 
-    // active cells
     ctx.globalAlpha = 0.9;
     ctx.fillStyle = '#2f8a3c';
     for(let r=0;r<LANES.length;r++){
@@ -611,7 +707,6 @@
       }
     }
 
-    // playhead
     ctx.globalAlpha = 0.92;
     ctx.strokeStyle = '#b6ffbf';
     ctx.lineWidth = 2;
@@ -641,7 +736,6 @@
       ctx.lineTo(p2.x,p2.y);
     }
     ctx.stroke();
-
     ctx.restore();
   }
 
@@ -673,7 +767,7 @@
     if(y >= band.y0){
       lane = Math.max(0, Math.min(LANES.length-1, Math.floor((y - band.y0)/laneH)));
     }else{
-      lane = 3; // conga default se disegni sopra
+      lane = 3; // conga default
     }
     grid[lane][st] = 1;
   }
@@ -687,17 +781,15 @@
     const p = normXY(e);
     pointers.set(e.pointerId, {x:p.x,y:p.y,down:true,shift:!!e.shiftKey});
 
-    // double tap => reset
     const now = performance.now();
     if(now - lastTap < 260){
       makeCloth();
-      resetPieces();
+      pieces.length = 0;
       lastTap = 0;
       statusBadge.textContent = "RESET";
       return;
     }
     lastTap = now;
-
   }, {passive:false});
 
   canvas.addEventListener('pointermove', (e)=>{
@@ -710,10 +802,8 @@
     const band = bandRect();
     const aggressive = (!!e.shiftKey) || s.shift;
 
-    // drag: scrive groove
     paintCellAt(p.x,p.y);
 
-    // drag sopra band: taglia cloth se attivo
     if(cutting && p.y < band.y0){
       const r = (profile()==="mobile") ? 18 : 14;
       cutAt(p.x,p.y, r, aggressive);
@@ -726,7 +816,6 @@
     if(!s) return;
     const p = normXY(e);
 
-    // tap: toggle cell se dentro band, altrimenti piccolo cut/poke
     const band = bandRect();
     if(p.y >= band.y0){
       toggleCellAt(p.x,p.y);
@@ -738,7 +827,6 @@
         paintCellAt(p.x,p.y);
       }
     }
-
     pointers.delete(e.pointerId);
   }, {passive:false});
 
@@ -747,21 +835,19 @@
     pointers.delete(e.pointerId);
   }, {passive:false});
 
-  // ---------- Transport ----------
+  // ---------- Transport + Render ----------
   function transport(now){
     const dtMs = now - lastNow;
     lastNow = now;
-    const dt = Math.min(0.033, dtMs/1000); // clamp
+    const dt = Math.min(0.033, dtMs/1000);
 
     PROFILE = profile();
-
-    // update pieces
     updatePieces(dt);
 
     if(!playing) return;
 
     const beatMs = (60_000 / BPM);
-    const stepMs = beatMs / 4; // 16th
+    const stepMs = beatMs / 4;
     playPhase += dtMs / (stepMs * STEPS);
     while(playPhase >= 1) playPhase -= 1;
 
@@ -769,12 +855,11 @@
     if(targetStep !== step){
       step = targetStep;
 
-      // audio + cloth react
       if(AC){
         const odd = (step % 2) === 1;
-        const swingSec = (SWING - 0.5) * 0.16 * (60 / BPM); // small
+        const swingSec = (SWING - 0.5) * 0.16 * (60 / BPM);
         const t = AC.currentTime + (odd ? swingSec : 0);
-        playCurrentStep(t);
+        playCurrentStepRealtime(t);
       }
 
       let hits=0;
@@ -783,9 +868,7 @@
     }
   }
 
-  // ---------- Render loop ----------
   function frame(now){
-    // trail clear
     if(TRAIL <= 0){
       ctx.fillStyle = '#050805';
       ctx.fillRect(0,0,W,H);
@@ -800,11 +883,8 @@
 
     transport(now);
 
-    // physics
-    const dt = 1/60;
-    verlet(dt);
+    verlet(1/60);
 
-    // draw order: pieces behind, cloth, band
     drawPieces();
     drawCloth();
     drawBand();
@@ -823,17 +903,17 @@
     btnPlay.classList.toggle('on', playing);
     btnPlay.textContent = playing ? "PLAY" : "PAUSE";
 
-    btnErase.classList.toggle('on', cutting);
-    btnErase.textContent = cutting ? "CUT: ON" : "CUT: OFF";
+    btnCut.classList.toggle('on', cutting);
+    btnCut.textContent = cutting ? "CUT: ON" : "CUT: OFF";
 
     btnAfro.classList.toggle('on', afroOn);
     btnPieces.classList.toggle('on', piecesOn);
 
     forceMobileEl.checked = forceMobile;
-
     modeBadge.textContent = `MODE: ${profile().toUpperCase()} • DPR ${DPR.toFixed(2)}`;
   }
   syncUI();
+  statusBadge.textContent = "PLAYING";
 
   bpmEl.addEventListener('input', ()=>{ BPM=+bpmEl.value; syncUI(); }, {passive:true});
   swEl.addEventListener('input',  ()=>{ SWING=+swEl.value; syncUI(); }, {passive:true});
@@ -845,7 +925,7 @@
   windEl.addEventListener('input', ()=>{ WIND=+windEl.value; }, {passive:true});
   gravEl.addEventListener('input', ()=>{ GRAV=+gravEl.value; }, {passive:true});
 
-  btnErase.addEventListener('click', ()=>{ cutting=!cutting; syncUI(); }, {passive:true});
+  btnCut.addEventListener('click', ()=>{ cutting=!cutting; syncUI(); }, {passive:true});
   btnPieces.addEventListener('click', ()=>{ piecesOn=!piecesOn; syncUI(); }, {passive:true});
 
   btnAfro.addEventListener('click', ()=>{
@@ -860,30 +940,48 @@
 
   btnReset.addEventListener('click', ()=>{
     makeCloth();
-    resetPieces();
+    pieces.length = 0;
     statusBadge.textContent = "RESET";
   }, {passive:true});
 
   btnPlay.addEventListener('click', async ()=>{
     ensureAudio();
-    // iOS: obbligatorio resume su gesto utente
-    if(AC.state === 'suspended') await AC.resume();
+    if(AC.state === 'suspended') await AC.resume(); // iOS requirement
     playing = !playing;
     statusBadge.textContent = playing ? "PLAYING" : "PAUSED";
     syncUI();
   }, {passive:true});
 
-  // Menu open/close
-  function openMenu(){ drawer.classList.add('open'); }
-  function closeMenuFn(){ drawer.classList.remove('open'); }
+  btnRec.addEventListener('click', async ()=>{
+    try{
+      statusBadge.textContent = "RENDERING…";
+      await renderWav4Bars();
+      statusBadge.textContent = "WAV READY";
+      setTimeout(()=>statusBadge.textContent = playing ? "PLAYING" : "PAUSED", 1200);
+    }catch(err){
+      console.error(err);
+      statusBadge.textContent = "REC ERROR";
+      alert("REC WAV non disponibile qui. Serve HTTPS e browser compatibile.");
+    }
+  }, {passive:true});
 
-  menuBtn.addEventListener('click', ()=> {
-    if(drawer.classList.contains('open')) closeMenuFn(); else openMenu();
+  // ---------- Menu open/close (FIX: nasconde hudBody) ----------
+  function openMenu(){
+    drawer.classList.add('open');
+    hud.classList.add('menu-open');
+  }
+  function closeMenuFn(){
+    drawer.classList.remove('open');
+    hud.classList.remove('menu-open');
+  }
+
+  menuBtn.addEventListener('click', ()=>{
+    if(drawer.classList.contains('open')) closeMenuFn();
+    else openMenu();
   }, {passive:true});
 
   closeMenu.addEventListener('click', closeMenuFn, {passive:true});
 
-  // Tap fuori per chiudere
   document.addEventListener('pointerdown', (e)=>{
     if(!drawer.classList.contains('open')) return;
     const inDrawer = drawer.contains(e.target);
@@ -894,17 +992,16 @@
   forceMobileEl.addEventListener('change', ()=>{
     forceMobile = !!forceMobileEl.checked;
     makeCloth();
-    // mobile safe: riduci di base pezzi se serve
     if(profile()==="mobile"){
+      // safety: limita pezzi su mobile se alto
       const v = Math.min(+piecesAmtEl.value, 1100);
-      piecesAmtEl.value = String(v);
-      MAX_PIECES = v;
+      if(+piecesAmtEl.value !== v){
+        piecesAmtEl.value = String(v);
+        MAX_PIECES = v;
+      }
     }
     syncUI();
   }, {passive:true});
-
-  // Initial badge
-  statusBadge.textContent = "PLAYING";
 
 })();
 </script>
